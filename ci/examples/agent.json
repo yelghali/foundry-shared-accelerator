@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "kind": "prompt",
+  "instructions": "You are the assistant for project ${PROJECT_NAME}. Follow the user's requested output format exactly. For smoke tests, return only the requested marker. Do not invent tools or data."
+}

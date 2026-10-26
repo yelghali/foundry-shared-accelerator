@@ -1,0 +1,107 @@
+stages: [validate, plan, release]
+
+default:
+  tags: [fsa-azure]
+  id_tokens:
+    AZURE_OIDC_TOKEN:
+      aud: api://AzureADTokenExchange
+  before_script:
+    - az login --service-principal --username "$AZURE_CLIENT_ID" --tenant "$AZURE_TENANT_ID" --federated-token "$AZURE_OIDC_TOKEN" --output none
+    - az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+    - export ARM_CLIENT_ID="$AZURE_CLIENT_ID" ARM_TENANT_ID="$AZURE_TENANT_ID" ARM_SUBSCRIPTION_ID="$AZURE_SUBSCRIPTION_ID"
+    - export ARM_OIDC_TOKEN="$AZURE_OIDC_TOKEN" ARM_USE_OIDC=true ARM_USE_AZUREAD=true
+    - python -m pip install -r requirements.txt
+
+offline-validation:
+  stage: validate
+  before_script:
+    - python -m pip install -r requirements.txt
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  script:
+    - pwsh -NoProfile -File scripts/Test-Offline.ps1
+
+platform-plan:
+  stage: plan
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $FSA_ACTION == "platform"'
+  script:
+    - pwsh -NoProfile -File scripts/Invoke-CIRelease.ps1 -Action platform-plan
+
+platform-apply:
+  stage: release
+  resource_group: fsa-$FSA_PREFIX-release
+  needs: [platform-plan]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $FSA_ACTION == "platform"'
+      when: manual
+  allow_failure: false
+  environment:
+    name: fsa-platform
+  script:
+    - pwsh -NoProfile -File scripts/Invoke-CIRelease.ps1 -Action platform-apply
+
+team-plan:
+  stage: plan
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $FSA_ACTION == "onboard-team"'
+  script:
+    - pwsh -NoProfile -File scripts/Invoke-CIRelease.ps1 -Action team-plan -ProjectName "$PROJECT_NAME"
+
+team-apply:
+  stage: release
+  resource_group: fsa-$FSA_PREFIX-release
+  needs: [team-plan]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $FSA_ACTION == "onboard-team"'
+      when: manual
+  allow_failure: false
+  environment:
+    name: fsa-team
+  script:
+    - pwsh -NoProfile -File scripts/Invoke-CIRelease.ps1 -Action team-apply -ProjectName "$PROJECT_NAME"
+
+knowledge-plan:
+  stage: plan
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $FSA_ACTION == "extend-kb"'
+  script:
+    - pwsh -NoProfile -File scripts/Invoke-CIRelease.ps1 -Action kb-plan -ProjectName "$PROJECT_NAME"
+
+knowledge-apply:
+  stage: release
+  resource_group: fsa-$FSA_PREFIX-release
+  needs: [knowledge-plan]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $FSA_ACTION == "extend-kb"'
+      when: manual
+  allow_failure: false
+  environment:
+    name: fsa-team
+  script:
+    - pwsh -NoProfile -File scripts/Invoke-CIRelease.ps1 -Action kb-apply -ProjectName "$PROJECT_NAME"
+
+publish-agent:
+  stage: release
+  resource_group: fsa-$FSA_PREFIX-release
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $FSA_ACTION == "publish-agent"'
+      when: manual
+  allow_failure: false
+  environment:
+    name: fsa-team
+  script:
+    - pwsh -NoProfile -File scripts/Invoke-CIRelease.ps1 -Action publish-agent -ProjectName "$PROJECT_NAME" -AgentName "$AGENT_NAME"
+
+grant-consumer:
+  stage: release
+  resource_group: fsa-$FSA_PREFIX-release
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $FSA_ACTION == "grant-consumer"'
+      when: manual
+  allow_failure: false
+  environment:
+    name: fsa-team
+  script:
+    - pwsh -NoProfile -File scripts/Invoke-CIRelease.ps1 -Action grant-consumer -ProjectName "$PROJECT_NAME" -AgentName "$AGENT_NAME" -ConsumerPrincipalId "$CONSUMER_PRINCIPAL_ID"

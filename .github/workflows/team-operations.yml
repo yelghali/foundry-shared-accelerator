@@ -1,0 +1,92 @@
+name: Release team operation
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Approved team operation
+        type: choice
+        required: true
+        options: [extend-kb, publish-agent, grant-consumer]
+      project_name:
+        description: Existing team project name
+        type: string
+        required: true
+      agent_name:
+        description: Required for publish-agent and grant-consumer
+        type: string
+      consumer_principal_id:
+        description: Entra application object ID for grant-consumer
+        type: string
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: fsa-${{ vars.FSA_PREFIX }}-release
+  cancel-in-progress: false
+env:
+  FSA_PREFIX: ${{ vars.FSA_PREFIX }}
+  AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  TF_STATE_RESOURCE_GROUP: ${{ vars.TF_STATE_RESOURCE_GROUP }}
+  TF_STATE_STORAGE_ACCOUNT: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
+  TF_STATE_CONTAINER: ${{ vars.TF_STATE_CONTAINER }}
+  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  ARM_USE_OIDC: "true"
+  ARM_USE_AZUREAD: "true"
+  RUNNER_SSH_PRIVATE_KEY_B64: ${{ secrets.RUNNER_SSH_PRIVATE_KEY_B64 }}
+jobs:
+  plan-knowledge:
+    if: github.ref == 'refs/heads/main' && inputs.operation == 'extend-kb'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.6"
+          terraform_wrapper: false
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - run: python -m pip install -r requirements.txt
+      - shell: pwsh
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+        run: ./scripts/Invoke-CIRelease.ps1 -Action kb-plan -ProjectName $env:PROJECT_NAME
+  apply:
+    if: always() && github.ref == 'refs/heads/main' && (inputs.operation != 'extend-kb' || needs.plan-knowledge.result == 'success')
+    needs: plan-knowledge
+    runs-on: ubuntu-latest
+    environment: fsa-team
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.6"
+          terraform_wrapper: false
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - run: python -m pip install -r requirements.txt
+      - shell: pwsh
+        env:
+          OPERATION: ${{ inputs.operation }}
+          PROJECT_NAME: ${{ inputs.project_name }}
+          AGENT_NAME: ${{ inputs.agent_name }}
+          CONSUMER_PRINCIPAL_ID: ${{ inputs.consumer_principal_id }}
+        run: |
+          $action = if ($env:OPERATION -eq "extend-kb") { "kb-apply" } else { $env:OPERATION }
+          ./scripts/Invoke-CIRelease.ps1 -Action $action -ProjectName $env:PROJECT_NAME `
+            -AgentName $env:AGENT_NAME -ConsumerPrincipalId $env:CONSUMER_PRINCIPAL_ID

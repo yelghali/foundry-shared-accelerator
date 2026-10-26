@@ -1,0 +1,8 @@
+{
+  "name": "my-team",
+  "search_mode": "shared",
+  "search_location": null,
+  "user_principal_ids": ["<team-member-entra-object-id>"],
+  "group_principal_ids": [],
+  "service_principal_ids": []
+}

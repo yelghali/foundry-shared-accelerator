@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 940" role="img" aria-labelledby="title description">
+  <title id="title">Follow-up requests for knowledge bases and application identities</title>
+  <desc id="description">Two additive workflows: request a new knowledge source and base using a manifest, or add an application identity using its Entra service principal object ID. Platform automation applies scoped grants and binds approved connections; gateway consumption remains a separate asset-scoped authorization.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#0d1830"/><stop offset="1" stop-color="#1c2b46"/></linearGradient>
+    <linearGradient id="kb" x2="1" y2="1"><stop stop-color="#235f65"/><stop offset="1" stop-color="#143d4d"/></linearGradient>
+    <linearGradient id="app" x2="1" y2="1"><stop stop-color="#604c7b"/><stop offset="1" stop-color="#38375e"/></linearGradient>
+    <marker id="tealArrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1 1L9 5 1 9Z" fill="#68deca"/></marker>
+    <marker id="violetArrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1 1L9 5 1 9Z" fill="#bea4fb"/></marker>
+    <style>
+      text{font-family:"Segoe UI",Arial,sans-serif;fill:#f1f6ff}
+      .eyebrow{font-size:15px;font-weight:740;letter-spacing:2px;fill:#6fe0ce}
+      .title{font-size:43px;font-weight:760;letter-spacing:-1.3px}
+      .sub{font-size:18px;fill:#b7cbdf}
+      .lane{font-size:17px;font-weight:750;letter-spacing:1.6px}
+      .heading{font-size:23px;font-weight:720}
+      .body{font-size:17px;fill:#d8e5f3}
+      .small{font-size:15px;fill:#bad0df}
+      .tag{font-size:14px;font-weight:740}
+    </style>
+  </defs>
+  <rect width="1440" height="940" fill="url(#bg)"/>
+  <circle cx="1246" cy="134" r="265" fill="#38717c" opacity=".07"/>
+  <circle cx="81" cy="839" r="235" fill="#816eb0" opacity=".09"/>
+  <rect x="47" y="42" width="1346" height="118" rx="25" fill="#192b45" stroke="#4c6a85"/>
+  <rect x="72" y="66" width="8" height="68" rx="4" fill="#67ddca"/>
+  <text x="104" y="80" class="eyebrow">DAY-TWO OPERATIONS · ADDITIVE CHANGES</text>
+  <text x="104" y="126" class="title">Need more knowledge or another app?</text>
+  <text x="67" y="203" class="sub">No form or approval portal is deployed yet. The team supplies a request; platform automation applies it with guarded Terraform.</text>
+  <rect x="62" y="230" width="640" height="527" rx="27" fill="url(#kb)" stroke="#4dc7b7" stroke-width="2"/>
+  <rect x="87" y="254" width="144" height="35" rx="17" fill="#1e6660"/>
+  <text x="105" y="278" class="tag" fill="#a7fff0">PATH 01 · MORE KBs</text>
+  <text x="88" y="330" class="heading">Team proposes a knowledge scope</text>
+  <text x="88" y="360" class="small">Source container(s) + KB names + source membership</text>
+  <rect x="87" y="387" width="590" height="85" rx="17" fill="#123b48" stroke="#5dafa9"/>
+  <text x="107" y="418" class="body">Knowledge manifest → Onboard-Team.ps1</text>
+  <text x="107" y="448" class="small">-KnowledgeManifest team-knowledge.json -Apply</text>
+  <path d="M383 476V507" fill="none" stroke="#68deca" stroke-width="4" marker-end="url(#tealArrow)"/>
+  <rect x="87" y="518" width="590" height="112" rx="17" fill="#164c50" stroke="#63bcb0"/>
+  <text x="107" y="550" class="heading" style="font-size:19px">Platform release checks capacity and ownership</text>
+  <text x="107" y="578" class="small">Add private Blob source → generated index → new KB</text>
+  <text x="107" y="605" class="small">Terraform adds index grants; IQ connection is bound</text>
+  <rect x="87" y="649" width="590" height="76" rx="17" fill="#1d675d" stroke="#6fdbc2"/>
+  <text x="108" y="681" class="body">Team can use the new KB in its own agents</text>
+  <text x="108" y="704" class="small">Shared Search KBs require a platform release*</text>
+  <rect x="738" y="230" width="640" height="527" rx="27" fill="url(#app)" stroke="#ae97e5" stroke-width="2"/>
+  <rect x="763" y="254" width="160" height="35" rx="17" fill="#6c568c"/>
+  <text x="781" y="278" class="tag" fill="#eee0ff">PATH 02 · MORE APPS</text>
+  <text x="764" y="330" class="heading">Team provides an Entra object ID</text>
+  <text x="764" y="360" class="small">Use the service principal object ID, not a client secret</text>
+  <rect x="763" y="387" width="590" height="85" rx="17" fill="#38325d" stroke="#9a87d7"/>
+  <text x="783" y="418" class="body">Service principal ID → Onboard-Team.ps1</text>
+  <text x="783" y="448" class="small">-ServicePrincipalIds &lt;object-id&gt; -Apply</text>
+  <path d="M1059 476V507" fill="none" stroke="#bea4fb" stroke-width="4" marker-end="url(#violetArrow)"/>
+  <rect x="763" y="518" width="590" height="112" rx="17" fill="#453a69" stroke="#af95df"/>
+  <text x="783" y="550" class="heading" style="font-size:19px">Terraform adds scoped authoring access</text>
+  <text x="783" y="578" class="small">Foundry User · own index and Blob author roles</text>
+  <text x="783" y="605" class="small">Blob writer on allocated team container(s)</text>
+  <rect x="763" y="649" width="590" height="76" rx="17" fill="#615080" stroke="#c7b2f2"/>
+  <text x="784" y="681" class="body">App can author in its assigned team boundary</text>
+  <text x="784" y="704" class="small">Gateway consumer access is a separate asset-scoped grant</text>
+  <rect x="62" y="784" width="1316" height="116" rx="22" fill="#253851" stroke="#526e8b"/>
+  <text x="88" y="823" class="eyebrow" fill="#ffd38e">IMPORTANT BOUNDARIES</text>
+  <text x="88" y="855" class="body">* Dedicated Search authors can create KBs directly; every new KB still needs a Foundry project connection.</text>
+  <text x="88" y="880" class="small">Project MIs can read sibling KBs on shared Search. No model admin, automatic gateway publication, or silent grant removal.</text>
+</svg>

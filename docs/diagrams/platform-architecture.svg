@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" role="img" aria-labelledby="title description">
+  <title id="title">Shared Foundry accelerator platform architecture</title>
+  <desc id="description">A customer virtual network hosts private Foundry, model, Search, and Blob access. The AI Gateway accepts authenticated public traffic and privately reaches two model backends. New dev teams share a Search service with service-wide project reader access; dedicated Search is an isolation option.</desc>
+  <defs>
+    <linearGradient id="background" x2="1" y2="1">
+      <stop stop-color="#0b1426"/>
+      <stop offset="1" stop-color="#172846"/>
+    </linearGradient>
+    <linearGradient id="foundry" x2="1" y2="1">
+      <stop stop-color="#175b80"/>
+      <stop offset="1" stop-color="#153652"/>
+    </linearGradient>
+    <linearGradient id="gateway" x2="1" y2="1">
+      <stop stop-color="#704b99"/>
+      <stop offset="1" stop-color="#333465"/>
+    </linearGradient>
+    <pattern id="dots" width="26" height="26" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1" fill="#314b69" opacity=".55"/>
+    </pattern>
+    <marker id="privateArrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M1 1L9 5 1 9Z" fill="#49ddcf"/>
+    </marker>
+    <marker id="publicArrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M1 1L9 5 1 9Z" fill="#ffca7a"/>
+    </marker>
+    <style>
+      text{font-family:"Segoe UI",Arial,sans-serif;fill:#eaf4ff}
+      .eyebrow{font-size:15px;font-weight:700;letter-spacing:2.3px;fill:#6ee3d7}
+      .title{font-size:42px;font-weight:760;letter-spacing:-1.4px}
+      .sub{font-size:18px;fill:#b7c9dd}
+      .label{font-size:16px;font-weight:700;letter-spacing:1.2px;fill:#99bad1}
+      .heading{font-size:26px;font-weight:730}
+      .body{font-size:17px;fill:#d2e3f1}
+      .small{font-size:15px;fill:#adc5d8}
+      .chip{font-size:14px;font-weight:700}
+      .private{fill:#70e3d5}
+      .public{fill:#ffce86}
+      .card{stroke:#6685a6;stroke-opacity:.44;stroke-width:1.5}
+    </style>
+  </defs>
+  <rect width="1440" height="900" fill="url(#background)"/>
+  <rect width="1440" height="900" fill="url(#dots)"/>
+  <rect x="44" y="44" width="1352" height="99" rx="24" fill="#172841" stroke="#3e6283"/>
+  <rect x="70" y="70" width="7" height="48" rx="3.5" fill="#59dfd1"/>
+  <text x="99" y="78" class="eyebrow">LIVE AZURE EXPERIMENT · TERRAFORM</text>
+  <text x="99" y="116" class="title">Shared Foundry, governed by design</text>
+  <rect x="1165" y="67" width="199" height="39" rx="19" fill="#173f44" stroke="#49cabb"/>
+  <text x="1190" y="93" class="chip private">DEPLOYED &amp; TESTED</text>
+  <text x="64" y="188" class="label">CUSTOMER VNET / SIMULATED LANDING ZONE</text>
+  <text x="1068" y="188" class="small">BYO subnets · private DNS · endpoints</text>
+  <rect x="44" y="201" width="1352" height="610" rx="28" fill="#111e32" stroke="#45607f" stroke-width="2"/>
+  <rect x="68" y="226" width="380" height="233" rx="22" fill="url(#foundry)" class="card"/>
+  <circle cx="104" cy="264" r="16" fill="#61dfd5" opacity=".23"/>
+  <circle cx="104" cy="264" r="7" fill="#72eee1"/>
+  <text x="130" y="273" class="label" fill="#aaf4eb">SHARED CONTROL PLANE</text>
+  <text x="93" y="321" class="heading">Agent Foundry</text>
+  <text x="93" y="352" class="body">fsa1023a-agents · East US 2</text>
+  <rect x="92" y="376" width="153" height="39" rx="12" fill="#0b2d43" stroke="#58a4b9"/>
+  <text x="110" y="402" class="chip">Team projects</text>
+  <rect x="256" y="376" width="167" height="39" rx="12" fill="#0b2d43" stroke="#58a4b9"/>
+  <text x="274" y="402" class="chip">Agent versions</text>
+  <text x="93" y="439" class="small">Private PE + agent VNet egress; public authoring for test</text>
+  <rect x="509" y="226" width="378" height="233" rx="22" fill="url(#gateway)" class="card"/>
+  <circle cx="545" cy="264" r="16" fill="#dfb8ff" opacity=".20"/>
+  <path d="M538 266l6-9 7 9-7 7Z" fill="#e3b5ff"/>
+  <text x="574" y="273" class="label">GOVERNED MODEL FRONT DOOR</text>
+  <text x="535" y="321" class="heading">AI Gateway · Premium</text>
+  <text x="535" y="352" class="body">fsa1023a-gw · approved-chat alias</text>
+  <rect x="535" y="375" width="226" height="39" rx="12" fill="#3f345f" stroke="#ce9eff"/>
+  <text x="554" y="401" class="chip public">PUBLIC + ENTRA / RBAC</text>
+  <text x="535" y="439" class="small">Outbound model route uses private backend network</text>
+  <rect x="950" y="226" width="418" height="103" rx="20" fill="#183c4a" class="card"/>
+  <text x="977" y="260" class="label">PRIMARY MODEL BACKEND</text>
+  <text x="977" y="291" class="heading" style="font-size:22px">fsa1023a-model-a</text>
+  <text x="977" y="314" class="small">East US 2 · chat + embedding</text>
+  <rect x="950" y="356" width="418" height="103" rx="20" fill="#183c4a" class="card"/>
+  <text x="977" y="390" class="label">SECONDARY MODEL BACKEND</text>
+  <text x="977" y="421" class="heading" style="font-size:22px">fsa1023a-model-b</text>
+  <text x="977" y="444" class="small">Sweden Central · private endpoint</text>
+  <path d="M449 339H498" fill="none" stroke="#ffca7a" stroke-width="4" marker-end="url(#publicArrow)"/>
+  <text x="448" y="315" class="chip public" style="font-size:13px">PUBLIC</text>
+  <path d="M888 279H938" fill="none" stroke="#49ddcf" stroke-width="4" marker-end="url(#privateArrow)"/>
+  <path d="M888 404H938" fill="none" stroke="#49ddcf" stroke-width="4" marker-end="url(#privateArrow)"/>
+  <text x="891" y="253" class="chip private" style="font-size:13px">PRIVATE</text>
+  <rect x="68" y="508" width="380" height="219" rx="22" fill="#1c3444" class="card"/>
+  <text x="92" y="548" class="label">CUSTOMER DATA LANDING ZONE</text>
+  <text x="92" y="587" class="heading" style="font-size:24px">Private Blob Storage</text>
+  <text x="92" y="617" class="body">fsa1023ashared</text>
+  <text x="92" y="653" class="small">Per-team containers · Search MI reads source data</text>
+  <text x="92" y="683" class="small">Team writers receive container-scoped access</text>
+  <rect x="509" y="508" width="378" height="219" rx="22" fill="#193f44" class="card"/>
+  <text x="535" y="548" class="label">OPTIONAL ISOLATION</text>
+  <text x="535" y="587" class="heading" style="font-size:24px">Dedicated Basic Search</text>
+  <text x="535" y="617" class="body">One service / team · extra cost</text>
+  <text x="535" y="653" class="small">Foundry IQ KB + indexes + semantic retrieval</text>
+  <text x="535" y="683" class="small">Service reader stays in that team boundary</text>
+  <rect x="950" y="508" width="418" height="219" rx="22" fill="#22354a" class="card"/>
+  <text x="977" y="548" class="label">DEFAULT FOR NEW DEV TEAMS</text>
+  <text x="977" y="587" class="heading" style="font-size:24px">Shared Basic Search</text>
+  <text x="977" y="617" class="body">fsa1023a-search · West Europe</text>
+  <text x="977" y="653" class="small">Project MIs: service-wide KB/index reads</text>
+  <text x="977" y="683" class="small">No cross-team Search read isolation</text>
+  <path d="M258 728V738H1145V728" fill="none" stroke="#49ddcf" stroke-width="4" marker-end="url(#privateArrow)"/>
+  <path d="M1145 505V482H258V466" fill="none" stroke="#49ddcf" stroke-width="4" marker-end="url(#privateArrow)"/>
+  <text x="328" y="477" class="chip private" style="font-size:13px">IQ MCP</text>
+  <rect x="68" y="752" width="1300" height="37" rx="12" fill="#23334b"/>
+  <circle cx="92" cy="771" r="5" fill="#49ddcf"/>
+  <text x="107" y="777" class="small">Teal = private data/backend path</text>
+  <circle cx="386" cy="771" r="5" fill="#ffca7a"/>
+  <text x="401" y="777" class="small">Amber = accepted authenticated public gateway ingress</text>
+  <text x="1023" y="777" class="small">Gateway OTLP + agent traces</text>
+  <text x="64" y="850" class="sub">Platform owns model deployments, approved connections, gateway routing and network policy. Teams own agent creation in their projects.</text>
+</svg>

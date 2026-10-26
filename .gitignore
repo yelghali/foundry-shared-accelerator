@@ -1,0 +1,13 @@
+.local/
+**/.terraform/
+**/terraform.tfstate*
+**/*.tfplan
+**/terraform.tfvars
+**/deployment.auto.tfvars.json
+**/network.auto.tfvars.json
+.venv/
+__pycache__/
+*.pyc
+.env
+build/
+**/local_backend_override.tf

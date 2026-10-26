@@ -1,0 +1,10 @@
+{
+  "sources": [
+    { "name": "my-team-docs", "container": "my-team-docs" },
+    { "name": "my-team-guides", "container": "my-team-guides" }
+  ],
+  "knowledge_bases": [
+    { "name": "my-team-kb", "sources": ["my-team-docs"] },
+    { "name": "my-team-guides-kb", "sources": ["my-team-guides"] }
+  ]
+}

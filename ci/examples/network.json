@@ -1,0 +1,21 @@
+{
+  "primary_location": "eastus2",
+  "agent_subnet_id": "<agent-egress-subnet-arm-id>",
+  "agent_pe_subnet_id": "<agent-private-endpoint-subnet-arm-id>",
+  "gateway_subnet_id": "<gateway-backend-subnet-arm-id>",
+  "runner_subnet_id": "<private-runner-subnet-arm-id>",
+  "private_dns_zone_ids": ["<foundry-private-dns-zone-arm-id>"],
+  "search_pe_subnet_id": "<search-private-endpoint-subnet-arm-id>",
+  "search_private_dns_zone_id": "<search-private-dns-zone-arm-id>",
+  "storage_account_id": "<customer-blob-storage-arm-id>",
+  "models": {
+    "primary": {
+      "location": "eastus2",
+      "pe_subnet_id": "<primary-model-private-endpoint-subnet-arm-id>"
+    },
+    "secondary": {
+      "location": "swedencentral",
+      "pe_subnet_id": "<secondary-model-private-endpoint-subnet-arm-id>"
+    }
+  }
+}

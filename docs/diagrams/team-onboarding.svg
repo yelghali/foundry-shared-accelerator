@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1000" role="img" aria-labelledby="title description">
+  <title id="title">Team project onboarding and access boundaries</title>
+  <desc id="description">Platform automation creates a team project, approved model and knowledge connections, a container, and scoped author grants on shared Search. Project managed identities have service-wide Search read access, so knowledge is not isolated across teams. Dedicated Search remains optional.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#101a2d"/><stop offset="1" stop-color="#20314d"/></linearGradient>
+    <linearGradient id="accent" x2="1" y2="0"><stop stop-color="#3dcfbd"/><stop offset="1" stop-color="#76a9ff"/></linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#405370" opacity=".19"/></pattern>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1 1L9 5 1 9Z" fill="#7eddd3"/></marker>
+    <style>
+      text{font-family:"Segoe UI",Arial,sans-serif;fill:#edf5ff}
+      .eyebrow{font-size:15px;font-weight:700;letter-spacing:2px;fill:#64ddcf}
+      .title{font-size:42px;font-weight:760;letter-spacing:-1px}
+      .sub{font-size:17px;fill:#b7cadd}
+      .section{font-size:16px;font-weight:750;letter-spacing:1.7px;fill:#95c5d9}
+      .heading{font-size:23px;font-weight:730}
+      .body{font-size:17px;fill:#d5e4f2}
+      .small{font-size:15px;fill:#b3cbdb}
+      .step{font-size:14px;font-weight:750}
+      .yes{fill:#6be4cf}
+      .no{fill:#ffd08d}
+    </style>
+  </defs>
+  <rect width="1440" height="1000" fill="url(#bg)"/>
+  <rect width="1440" height="1000" fill="url(#grid)"/>
+  <rect x="42" y="42" width="1356" height="116" rx="26" fill="#1a2941" stroke="#486281"/>
+  <rect x="69" y="67" width="8" height="66" rx="4" fill="url(#accent)"/>
+  <text x="102" y="80" class="eyebrow">TEAM ONBOARDING · TERRAFORM + PRIVATE RUNNER</text>
+  <text x="102" y="126" class="title">One project. Shared knowledge by choice.</text>
+  <rect x="1212" y="74" width="154" height="39" rx="19" fill="#174848" stroke="#5dd9c7"/>
+  <text x="1238" y="100" class="step yes">REPEATABLE</text>
+  <text x="68" y="210" class="section">PLATFORM-CONTROLLED SETUP</text>
+  <path d="M276 294H359 M610 294H694 M949 294H1032" stroke="#7eddd3" stroke-width="4" marker-end="url(#arrow)"/>
+  <rect x="64" y="230" width="211" height="128" rx="20" fill="#1f3d51" stroke="#6bc7cb"/>
+  <circle cx="98" cy="260" r="16" fill="#4cd0c4"/><text x="92" y="266" class="step" fill="#0d2531">1</text>
+  <text x="86" y="301" class="heading" style="font-size:19px">Request a team</text>
+  <text x="86" y="330" class="small">Name + Entra IDs</text>
+  <rect x="360" y="230" width="250" height="128" rx="20" fill="#203b51" stroke="#619ec5"/>
+  <circle cx="394" cy="260" r="16" fill="#71aaf7"/><text x="388" y="266" class="step" fill="#10233a">2</text>
+  <text x="382" y="301" class="heading" style="font-size:19px">Guarded Terraform</text>
+  <text x="382" y="330" class="small">Onboard-Team.ps1 · no deletion</text>
+  <rect x="695" y="230" width="254" height="128" rx="20" fill="#21444a" stroke="#5aceb9"/>
+  <circle cx="729" cy="260" r="16" fill="#65dfc9"/><text x="723" y="266" class="step" fill="#102b32">3</text>
+  <text x="718" y="301" class="heading" style="font-size:19px">Private IQ release</text>
+  <text x="718" y="330" class="small">Source → index → KB</text>
+  <rect x="1034" y="230" width="342" height="128" rx="20" fill="#283c59" stroke="#b192e1"/>
+  <circle cx="1068" cy="260" r="16" fill="#bc9ae7"/><text x="1062" y="266" class="step" fill="#241839">4</text>
+  <text x="1056" y="301" class="heading" style="font-size:19px">Team ready</text>
+  <text x="1056" y="330" class="small">Project receipt + tested access</text>
+  <rect x="64" y="401" width="1312" height="163" rx="23" fill="#172b43" stroke="#456c89"/>
+  <text x="91" y="436" class="section">WHAT ONBOARDING WIRES FOR EACH NEW TEAM</text>
+  <rect x="91" y="457" width="232" height="76" rx="15" fill="#194257" stroke="#388caa"/>
+  <text x="110" y="486" class="heading" style="font-size:18px">Foundry project</text>
+  <text x="110" y="511" class="small">agent authoring boundary</text>
+  <rect x="339" y="457" width="305" height="76" rx="15" fill="#30365f" stroke="#8a86d5"/>
+  <text x="358" y="486" class="heading" style="font-size:18px">Approved connections</text>
+  <text x="358" y="511" class="small">gateway model + team IQ tool</text>
+  <rect x="660" y="457" width="333" height="76" rx="15" fill="#174743" stroke="#4fbbab"/>
+  <text x="679" y="486" class="heading" style="font-size:18px">Shared Basic Search</text>
+  <text x="679" y="511" class="small">private PE · KBs · broad project read</text>
+  <rect x="1009" y="457" width="339" height="76" rx="15" fill="#3c3b4f" stroke="#baa481"/>
+  <text x="1028" y="486" class="heading" style="font-size:18px">Team Blob container</text>
+  <text x="1028" y="511" class="small">private source-data landing</text>
+  <rect x="64" y="601" width="632" height="279" rx="24" fill="#163d42" stroke="#45c3ae" stroke-width="2"/>
+  <rect x="90" y="624" width="96" height="31" rx="15" fill="#23635c"/>
+  <text x="111" y="646" class="step yes">TEAM CAN</text>
+  <text x="91" y="689" class="body">✓ Create and version agents in own project</text>
+  <text x="91" y="730" class="body">✓ Use approved gateway model connection</text>
+  <text x="91" y="771" class="body">✓ Edit own index; request new KBs*</text>
+  <text x="91" y="812" class="body">✓ Add files in allocated Blob containers*</text>
+  <text x="91" y="850" class="small">* Team authors have index + Blob roles, not shared Search admin.</text>
+  <rect x="722" y="601" width="654" height="279" rx="24" fill="#423a40" stroke="#d7a46b" stroke-width="2"/>
+  <rect x="749" y="624" width="169" height="31" rx="15" fill="#6b4c43"/>
+  <text x="766" y="646" class="step no">PLATFORM OWNS</text>
+  <text x="749" y="689" class="body">◆ Shared Foundry and model deployments</text>
+  <text x="749" y="730" class="body">◆ Approved project connection + gateway routing</text>
+  <text x="749" y="771" class="body">◆ Publishing an agent as a gateway asset</text>
+  <text x="749" y="812" class="body">◆ Grants for consumer apps on published assets</text>
+  <text x="749" y="850" class="small">No team-wide model admin or gateway Owner.</text>
+  <rect x="64" y="904" width="1312" height="58" rx="17" fill="#24344d"/>
+  <text x="88" y="939" class="body">RBAC:</text>
+  <text x="155" y="939" class="small">People / app IDs → Foundry User on own project</text>
+  <text x="635" y="939" class="small">Project MI → shared service Reader + own index</text>
+  <text x="1070" y="939" class="small">Search reads not isolated</text>
+</svg>
