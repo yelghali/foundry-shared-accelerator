@@ -1,0 +1,5 @@
+fastmcp==2.14.2
+azure-identity==1.25.3
+aiohttp==3.13.3
+azure-storage-blob==12.27.1
+PyJWT[crypto]==2.15.1

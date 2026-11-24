@@ -8,6 +8,12 @@ from typing import Any
 import requests
 
 
+class MCPProtocolError(RuntimeError):
+    def __init__(self, error: dict[str, Any]) -> None:
+        self.error = error
+        super().__init__(f"MCP error: {json.dumps(error)[:1200]}")
+
+
 def parse_rpc_response(response: requests.Response, request_id: int) -> dict[str, Any]:
     response.raise_for_status()
     content_type = response.headers.get("Content-Type", "").lower()
@@ -28,7 +34,9 @@ def parse_rpc_response(response: requests.Response, request_id: int) -> dict[str
     if not isinstance(value, dict) or value.get("id") != request_id:
         raise RuntimeError("MCP returned an invalid or mismatched JSON-RPC response.")
     if "error" in value:
-        raise RuntimeError(f"MCP error: {json.dumps(value['error'])[:1200]}")
+        if not isinstance(value["error"], dict):
+            raise RuntimeError("MCP returned an invalid JSON-RPC error object.")
+        raise MCPProtocolError(value["error"])
     result = value.get("result")
     if not isinstance(result, dict):
         raise RuntimeError("MCP response did not contain an object result.")

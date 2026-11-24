@@ -1,0 +1,70 @@
+model_list:
+  - model_name: os.environ/MODEL_ALIAS
+    litellm_params:
+      model: os.environ/AZURE_MODEL
+      api_base: os.environ/AZURE_API_BASE
+      api_version: os.environ/AZURE_API_VERSION
+litellm_settings:
+  enable_azure_ad_token_refresh: true
+  callbacks: [request_policy.policy]
+  set_verbose: false
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
+  litellm_key_header_name: x-litellm-api-key
+  agent_access_default_deny: true
+  disable_spend_logs: true
+mcp_servers:
+  blob:
+    url: http://127.0.0.1:4001/mcp
+    transport: http
+    allow_all_keys: false
+agents:
+  - agent_name: echo
+    agent_card_params:
+      name: Echo
+      description: Foundry hosted echo agent
+      url: os.environ/FOUNDRY_A2A_URL
+      protocolVersion: "1.0"
+      version: "1.0.0"
+      capabilities:
+        streaming: false
+      defaultInputModes: [text]
+      defaultOutputModes: [text]
+      skills:
+        - id: echo
+          name: Echo
+          description: Echo input without invoking a model
+          tags: [echo]
+    static_headers:
+      a2a-version: "1.0"
+    litellm_params:
+      agent_card_path: agentCard/v1.0
+      tenant_id: os.environ/AZURE_TENANT_ID
+      client_id: os.environ/AZURE_CLIENT_ID
+      azure_ad_token: oidc/azure/api://AzureADTokenExchange
+      azure_scope: https://ai.azure.com/.default
+  - agent_name: declarative
+    agent_card_params:
+      name: Declarative
+      description: Foundry declarative agent
+      url: os.environ/FOUNDRY_DECLARATIVE_A2A_URL
+      protocolVersion: "1.0"
+      version: "1.0.0"
+      capabilities:
+        streaming: false
+      defaultInputModes: [text]
+      defaultOutputModes: [text]
+      skills:
+        - id: declarative
+          name: Declarative
+          description: Invoke the registered declarative agent
+          tags: [declarative]
+    static_headers:
+      a2a-version: "1.0"
+    litellm_params:
+      agent_card_path: agentCard/v1.0
+      tenant_id: os.environ/AZURE_TENANT_ID
+      client_id: os.environ/AZURE_CLIENT_ID
+      azure_ad_token: oidc/azure/api://AzureADTokenExchange
+      azure_scope: https://ai.azure.com/.default

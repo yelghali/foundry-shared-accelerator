@@ -89,6 +89,11 @@ contract and safe reruns.
 
 ## Visual guides
 
+[![APIM Standard v2 and LiteLLM identity patterns](docs/diagrams/gateway-identity-scenarios.svg)](docs/diagrams/gateway-identity-scenarios.svg)
+
+For the optional LiteLLM scenario, see
+[identity patterns and private admin UI access](docs/gateway-identity-scenarios.md).
+
 Click a diagram to open the full-size, standalone SVG:
 
 [![Shared Foundry platform, private resources, and authenticated public AI Gateway](docs/diagrams/platform-architecture.svg)](docs/diagrams/platform-architecture.svg)
@@ -101,6 +106,10 @@ The change-request diagram describes the existing script-based process; a
 self-service form has **not** been deployed.
 
 ## More detail
+
+- [APIM/LiteLLM identity patterns: shared service, dedicated application and user OBO](docs/gateway-identity-scenarios.md)
+
+- [Alternative: APIM Standard v2 + LiteLLM on AKS, MCP and hosted A2A](docs/apim-litellm.md)
 
 - [Platform deployment and network inputs](docs/deploy-platform.md)
 - [Team onboarding, KBs, RBAC and acceptance](docs/onboard-team.md)
@@ -115,8 +124,9 @@ self-service form has **not** been deployed.
 
 This is an operational **dev** profile, not a production HA or billing
 solution. State and generated receipts are local under `.local/`; protect
-state and use a remote backend for production. Hosted agents and a self-service
-onboarding form are not implemented. Deployed resources remain running and
+state and use a remote backend for production. The default native-gateway scenario does not deploy hosted agents; the optional
+[APIM/LiteLLM scenario](docs/apim-litellm.md) includes a hosted A2A Echo sample.
+A self-service onboarding form is not implemented. Deployed resources remain running and
 can incur charges; nothing is automatically destroyed. See the
 [architecture](docs/architecture-plan.md) and [regional guide](docs/regional-deployment.md)
 for implementation details and limitations.

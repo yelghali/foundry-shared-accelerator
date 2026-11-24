@@ -1,0 +1,26 @@
+subscription_id            = "00000000-0000-0000-0000-000000000001"
+tenant_id                  = "00000000-0000-0000-0000-000000000002"
+name                       = "uniquegateway"
+location                   = "swedencentral"
+publisher_email            = "operator@example.com"
+operator_object_id         = "00000000-0000-0000-0000-000000000003"
+aks_admin_group_object_ids = ["00000000-0000-0000-0000-000000000003"]
+caller_audience            = "api://<gateway-application-id>"
+mcp_service_token_audience  = "api://<mcp-service-application-id>"
+allowed_caller_client_ids  = ["00000000-0000-0000-0000-000000000004"]
+model_account_id           = "/subscriptions/<subscription>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>"
+foundry_project_id         = "/subscriptions/<subscription>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>/projects/<project>"
+
+# Explicit PUBLIC DEVELOPMENT profile, for Azure CLI testing without app registration:
+# allow_development_management_audience = true
+# caller_audience = "https://management.azure.com"
+# mcp_service_token_audience = "https://management.azure.com"
+# allowed_caller_client_ids = ["04b07795-8ddb-461a-bbee-02f9e1bf7b46"]
+
+# Required when the existing model/Foundry endpoint is private-only:
+# existing_vnet_id = "/subscriptions/<subscription>/resourceGroups/<rg>/providers/Microsoft.Network/virtualNetworks/<vnet>"
+# private_dns_zone_ids = {
+#   cognitive = "/subscriptions/<subscription>/resourceGroups/<rg>/providers/Microsoft.Network/privateDnsZones/privatelink.cognitiveservices.azure.com"
+#   services  = "/subscriptions/<subscription>/resourceGroups/<rg>/providers/Microsoft.Network/privateDnsZones/privatelink.services.ai.azure.com"
+#   openai    = "/subscriptions/<subscription>/resourceGroups/<rg>/providers/Microsoft.Network/privateDnsZones/privatelink.openai.azure.com"
+# }

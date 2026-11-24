@@ -1,0 +1,4 @@
+azure-ai-agentserver-a2a==1.0.0b1
+azure-ai-agentserver-core==2.3.1b1
+a2a-sdk==1.2.3
+azure-identity==1.25.1

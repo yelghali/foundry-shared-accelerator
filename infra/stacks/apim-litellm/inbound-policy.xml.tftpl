@@ -1,0 +1,19 @@
+<policies>
+  <inbound>
+    <validate-azure-ad-token tenant-id="${tenant_id}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
+      <client-application-ids>
+%{ for client_id in allowed_client_ids ~}
+        <application-id>${client_id}</application-id>
+%{ endfor ~}
+      </client-application-ids>
+      <audiences>
+%{ for audience in audiences ~}
+        <audience>${audience}</audience>
+%{ endfor ~}
+      </audiences>
+    </validate-azure-ad-token>
+  </inbound>
+  <backend><forward-request /></backend>
+  <outbound />
+  <on-error />
+</policies>
