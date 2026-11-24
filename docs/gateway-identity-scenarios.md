@@ -20,7 +20,7 @@ agents directly and does not replace the consumer token with its own identity.
 | Namespace | `gateway` | `gateway-app-alpha` | `gateway-user-obo` |
 | OBO credential | Not required | Not required | App-registration secret in private Key Vault, mounted using workload identity |
 | Failure behavior | Explicit denial | Explicit denial | Explicit denial; **never falls back to service identity** |
-| Live Azure status, 2026-11-24 | Models, MCP, hosted/declarative A2A and key denials passed | Same checks passed with a different verified backend identity; foreign keys rejected | User-consent registrations configured; positive delegation awaits interactive user consent and remains subject to tenant policy |
+| Live Azure status, 2026-11-24 | Models, MCP, hosted/declarative A2A and key denials passed | Same checks passed with a different verified backend identity; foreign keys rejected | Passed with a real consented user: models, delegated MCP/identity, model-plus-MCP, hosted/declarative A2A, saved tasks and key denials |
 
 [![APIM and LiteLLM identity scenarios](diagrams/gateway-identity-scenarios.svg)](diagrams/gateway-identity-scenarios.svg)
 
@@ -48,14 +48,18 @@ The three profiles are deployed in East US 2 using gateway release `20261124h`:
 * `https://fsa-lit1120-apim.azure-api.net/ai-dedicated-application`
 * `https://fsa-lit1120-apim.azure-api.net/ai-user-obo`
 
-Non-secret A/B success receipts are under
-`.local\apim-litellm\<scenario>\acceptance.json`. C's original admin-consent blocker
-is recorded in `.local\apim-litellm\user-obo\verification-status.json`, not an OBO
-success receipt. The opt-in user-consent registration receipt is
-`.local\apim-litellm\entra-identity-user-consent.json`; it confirms configuration,
-not completed user consent or successful delegation. All wrong-audience calls to C, including its model route, return 401
-at APIM. C's workload-identity model inference was separately verified through
-the private operator API; this does not certify a user-admitted request.
+Non-secret A/B/C success receipts are under
+`.local\apim-litellm\<scenario>\acceptance.json`. On 2026-11-24, C passed live
+acceptance through APIM after the allowlisted user completed interactive
+consent and login. The test read that user's OS-encrypted MSAL cache; it did
+not substitute an operator token or workload identity for delegated calls.
+
+The opt-in registration receipt is
+`.local\apim-litellm\entra-identity-user-consent.json`. That file confirms
+configuration only; C's separate acceptance receipt proves the completed
+runtime checks. Model inference also passed through C's user-admitted APIM
+route, while the outbound model call continues to use the gateway workload
+identity. Wrong-audience tokens remain rejected at APIM.
 
 During the original admin-consent setup, the available lab identity could create the applications and securely store
 their credential, but Microsoft Graph rejected
@@ -63,10 +67,12 @@ their credential, but Microsoft Graph rejected
 Global Reader, not the tenant-admin authority needed to consent. No user
 assertion was fabricated and no service-identity fallback was enabled.
 
-The current lab scopes now permit user consent, with combined OBO consent
-configured for the test client. Use the [per-user consent instructions](#optional-per-user-consent-for-the-development-scenario)
-to sign in interactively. Tenant policy can still require administrator approval;
-no tenant policy or resource RBAC was relaxed.
+The lab resolved the blocker by allowing user consent on its two app-owned
+scopes and configuring combined OBO consent for the test client. The user then
+completed the real interactive flow. For a fresh deployment, follow the
+[per-user consent instructions](#optional-per-user-consent-for-the-development-scenario).
+Other tenants can still require administrator approval; no tenant policy or
+resource RBAC was relaxed.
 
 Alternatively, an authorized tenant administrator can complete **only consent**, without
 Key Vault or Kubernetes access:
@@ -85,9 +91,32 @@ only for the optional CLI development caller. The script updates the non-secret
 receipt only after every requested grant succeeds. A denied attempt was tested
 live and preserved the original non-consented receipt.
 
-After allowed user consent or administrator consent, authenticate the actual user and rerun C's live tests. Positive user-OBO
-agent/MCP invocation and cross-user Foundry Task isolation remain **unverified
-until those steps succeed**. C is not certified as working user delegation yet.
+After allowed user consent or administrator consent, authenticate the actual
+user and rerun C's live tests. Positive single-user OBO is now verified in this
+lab. **Cross-user Foundry Task isolation remains unverified**: it requires
+another independently authenticated user and explicit cross-user attempts.
+
+Consented C validation on 2026-11-24:
+
+* Model inference returned its exact marker through C's user-admitted APIM API;
+  outbound model authentication remains workload identity.
+* Native MCP OBO returned `authentication_mode: user-obo`, delegated scope
+  `tools.read`, the gateway's client application and the expected allowlisted
+  user identity. Personal user identifiers are not published in this guide.
+* MCP read the actual Blob marker, both directly and through a model-plus-MCP
+  Playground-style request. The expected contents were not supplied in that
+  model request's prompt.
+* Hosted Echo completed native A2A `SendMessage` and `GetTask` retrieved the
+  same task/artifacts. The declarative agent returned `DECLARATIVE_OK`.
+* Anonymous requests, missing/invalid virtual keys, unapproved models, and
+  models-only keys attempting MCP/agent access were denied.
+* C also rejected a shared-service virtual key with a valid user token, a
+  missing user assertion, and a wrong-audience token with HTTP 401.
+* The shipped combined A/B/C live-test script completed successfully:
+  **173 selected Python tests and 10 subtests passed**, two local native-schema
+  checks skipped, **6 Terraform tests passed**, and all three live profiles passed.
+* This proves the configured single-user invocation path, not per-user Blob
+  ACL propagation, cross-user task isolation, or token-expiry endurance.
 
 Direct-routing release `20261124h` validation on 2026-11-24:
 
@@ -98,7 +127,8 @@ Direct-routing release `20261124h` validation on 2026-11-24:
 * The exact admin Playground requests returned renderable agent output, and
   both registry entries expose the actual Foundry HTTPS URL.
 * C's direct route rejected a missing delegated assertion with HTTP 401; its
-  pod has no adapter container. Positive delegated calls still require consent.
+  pod has no adapter container. Its later consented-user checks are recorded
+  above; the earlier missing-consent result is no longer the current status.
 
 Earlier complete baseline validation on 2026-11-24:
 
@@ -208,8 +238,9 @@ Enterprise/OSS A2A OBO support. The same in-process integration verifies the use
 it for the Foundry scope, caches separately per user assertion/scope, and uses
 the delegated token for protected discovery and invocation. It does not modify
 the registry with user credentials and never falls back to workload identity.
-Positive C validation still requires actual user consent/login and may require
-administrator approval under tenant policy.
+The lab's consented single-user C invocation passed for both agents and MCP.
+Fresh users/deployments still need actual consent/login and may require
+administrator approval under their tenant policy.
 
 The loopback HTTP adapter is retained **only for A/B service-identity MCP**;
 it has no configured Foundry targets. C uses native MCP OBO plus the in-process
@@ -270,7 +301,7 @@ or separate browser profiles: localhost cookies are not isolated by port.
 | Agents / A2A Playground | Select `echo` or `declarative`; use non-streaming `message/send`. |
 | Virtual-key management | Inspect/create/restrict keys in this namespace's persistent database. |
 | APIM JWT admission and application-key isolation | Use `Test-GatewayScenarios.ps1`; direct admin UI calls do not test APIM. |
-| User OBO | Admin login is **not** an Entra user assertion. Consent and an actual delegated user token are still required; C is not certified. |
+| User OBO | Verified through the scripted C consumer flow with a real delegated user token. Admin UI login alone is **not** a user assertion and does not reproduce that flow. |
 
 Verified using the actual UI login/session and exact Playground HTTP requests:
 model catalog, a streaming model response, model-plus-MCP Blob reading, hosted
@@ -483,27 +514,26 @@ The setup script includes device-code login for the public test client:
 
 ```powershell
 python -m accelerator.entra_setup login `
-  --identity .local\apim-litellm\entra-identity.json `
-  --token-cache .local\apim-litellm\user-token-cache
+  --identity .local\apim-litellm\entra-identity-user-consent.json `
+  --token-cache .local\apim-litellm\user-obo\user-token-cache.bin
 ```
 
 This requires a real user to sign in; no synthetic user tokens or username/
 password shortcuts are used. Optional persistent MSAL cache requires
 `msal-extensions` and an available OS-encrypted persistence provider.
-For automated acceptance, use the authorized CLI identity with
-`-PreauthorizeAzureCli`, admin consent and a tenant-correct cached user login.
+The lab uses the public test client's encrypted cache. The older optional
+CLI-user path instead needs `-PreauthorizeAzureCli`, administrator consent and
+a tenant-correct user login; it is not an implicit fallback for the selected cache.
 The exact incoming `aud` for the v2 apps is the app GUID, while requested scopes
 use `api://<app-id>/...`; the renderer configures them separately.
 
 ```powershell
 .\scripts\Test-GatewayScenarios.ps1
+# All three profiles; the encrypted user cache is used only for C.
 .\scripts\Test-GatewayScenarios.ps1 -Live -UseAzd `
-  -IdentityFile .local\apim-litellm\entra-identity.json
-
-# Alternatively use the actual public test client's OS-encrypted user cache:
-.\scripts\Test-GatewayScenarios.ps1 -Live -Scenarios user-obo `
-  -IdentityFile .local\apim-litellm\entra-identity.json `
-  -UserTokenCache .local\apim-litellm\user-token-cache
+  -Scenarios shared-service,dedicated-application,user-obo `
+  -IdentityFile .local\apim-litellm\entra-identity-user-consent.json `
+  -UserTokenCache .local\apim-litellm\user-obo\user-token-cache.bin
 ```
 
 Live tests require real credentials and fail on missing consent or missing keys.
@@ -593,11 +623,17 @@ do not depend on these interactive grants and remain independently testable.
 
 See [Microsoft's combined OBO consent guidance](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-on-behalf-of-flow#default-and-combined-consent).
 
+This sequence was completed successfully in the lab on 2026-11-24, including
+positive MCP and hosted/declarative A2A OBO calls. An existing configuration
+receipt alone is still not evidence that a different user or deployment has
+completed consent; rerun the real login and acceptance steps.
+
 ## Explicit non-goals and remaining verification
 
 * A virtual key is an application credential, not an Entra user identity.
 * No automatic per-application Entra impersonation occurs in B.
-* Agent OBO is custom code and must be certified against the selected preview.
+* Agent OBO is custom code, live-tested here against the selected preview;
+  customer deployments and upgrades require their own acceptance.
 * User invocation of an agent is not automatic user propagation to its tools.
 * Shared Blob tools are not per-user Blob ACL isolation.
 * Streaming, multipart file processing, long token-expiry endurance and

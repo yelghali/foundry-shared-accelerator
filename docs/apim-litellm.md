@@ -3,8 +3,9 @@
 **Current authentication profiles:** use the
 [identity-scenario guide](gateway-identity-scenarios.md) for native OSS virtual
 keys, persistent key storage, application isolation and user OBO. The November
-20 evidence below describes the earlier APIM-MI/custom-auth profile; it is not
-evidence that the new OBO profile passed live acceptance.
+20 evidence below describes the earlier APIM-MI/custom-auth profile. The current
+guide records the separate November 24 live user-OBO acceptance after actual
+interactive user consent, including delegated MCP and hosted/declarative A2A.
 
 Release `20261124h` also replaces the historical A2A HTTP adapter below with
 **direct LiteLLM -> Foundry HTTPS** routing, native workload-federation auth,

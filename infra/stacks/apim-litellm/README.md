@@ -63,9 +63,11 @@ header and block administrative routes. C additionally requires
 `scenario_development_self_signed_tls` supports independent B/C TLS migration.
 Production uses trusted matching certificates and disables each bypass.
 
-FastMCP and A2A are always routed through LiteLLM. A/B use workload identity
-through the adapter; C uses native MCP Entra OBO and the explicit custom A2A OBO
-adapter. C's gateway MI has model/Vault access, not fallback agent access. APIM
+FastMCP and A2A are always routed through LiteLLM. A/B use native workload
+federation directly for Foundry agents; only their MCP calls use the HTTP
+adapter. C uses native MCP Entra OBO and custom in-process A2A OBO, with no
+adapter container. All agent URLs point directly to Foundry. C's gateway MI has
+model/Vault access, not fallback agent access. APIM
 has no direct Foundry grant. Endpoint URLs remain explicit runtime inputs.
 
 ## Network and limitations
