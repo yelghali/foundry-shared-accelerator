@@ -13,6 +13,7 @@ import subprocess
 import sys
 import time
 import uuid
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -183,8 +184,125 @@ def ensure_application(graph, name, scope_name=None, public=False):
     sp = ensure_sp(graph, app["appId"])
     result = {"app_id": app["appId"], "object_id": app["id"], "sp_id": sp["id"]}
     if scope_name:
-        result.update(audience=audience, scope=audience + "/" + scope_name, scope_id=scope["id"])
+        result.update(audience=audience, scope=audience + "/" + scope_name, scope_id=scope["id"],
+                      consent_type=scope.get("type", "Admin"))
     return app, result
+
+
+def configure_user_consent(graph, identity):
+    """Change only app-owned scopes and bundle the existing client/OBO permissions."""
+    applications = {}
+    for name in ("gateway", "mcp", "test_client"):
+        registration = identity[name]
+        app = graph.request(
+            "GET", "/applications/" + registration["object_id"]
+            + "?$select=id,appId,displayName,api,requiredResourceAccess",
+        )
+        if app["appId"] != registration["app_id"]:
+            raise ValueError(f"{name} application does not match the identity receipt.")
+        applications[name] = app
+    foundry = graph.request(
+        "GET", "/servicePrincipals/" + identity["foundry"]["sp_id"] + "?$select=oauth2PermissionScopes",
+    )
+    permission = single([
+        scope for scope in foundry["oauth2PermissionScopes"]
+        if scope["value"] == identity["foundry"]["scope"].rsplit("/", 1)[-1]
+    ], "Foundry delegated scope")
+    if not permission or not permission.get("isEnabled") or permission.get("type") != "User":
+        raise ValueError("The Foundry delegated scope is not user-consent eligible; an administrator is required.")
+    for client, resource_id, scope_id in (
+        ("test_client", identity["gateway"]["app_id"], identity["gateway"]["scope_id"]),
+        ("gateway", identity["mcp"]["app_id"], identity["mcp"]["scope_id"]),
+        ("gateway", identity["foundry"]["resource_app_id"], permission["id"]),
+    ):
+        if not any(
+            access["resourceAppId"] == resource_id
+            and {"id": scope_id, "type": "Scope"} in access.get("resourceAccess", [])
+            for access in applications[client].get("requiredResourceAccess", [])
+        ):
+            raise ValueError(f"{client} is missing a required delegated API permission; run identity provisioning first.")
+    for name in ("mcp", "gateway"):
+        registration, app = identity[name], applications[name]
+        scope = single([
+            scope for scope in app["api"]["oauth2PermissionScopes"]
+            if scope["id"] == registration["scope_id"]
+            and scope["value"] == registration["scope"].rsplit("/", 1)[-1]
+        ], name + " scope")
+        if not scope or not scope.get("isEnabled"):
+            raise ValueError(f"{name} scope is absent or disabled; resolve its configuration before migration.")
+    for name in ("mcp", "gateway"):
+        registration, app = identity[name], applications[name]
+        original_api = deepcopy(app["api"])
+        desired = deepcopy(original_api)
+        scope = next(scope for scope in desired["oauth2PermissionScopes"] if scope["id"] == registration["scope_id"])
+        changed_scope = scope["type"] != "User"
+        if changed_scope:
+            scope.update(
+                type="User", userConsentDisplayName=f"Access {app['displayName']}",
+                userConsentDescription=f"Allow this application to access {app['displayName']} on your behalf.",
+            )
+        if name == "gateway":
+            desired["knownClientApplications"] = list(dict.fromkeys([
+                *(desired.get("knownClientApplications") or []), identity["test_client"]["app_id"],
+            ]))
+        if desired == original_api:
+            continue
+        path = "/applications/" + app["id"]
+        if changed_scope:
+            disabled = deepcopy(original_api)
+            next(scope for scope in disabled["oauth2PermissionScopes"]
+                 if scope["id"] == registration["scope_id"])["isEnabled"] = False
+            graph.request("PATCH", path, {"api": disabled})
+        try:
+            graph.request("PATCH", path, {"api": desired})
+        except RuntimeError:
+            if changed_scope:
+                try:
+                    graph.request("PATCH", path, {"api": original_api})
+                except RuntimeError as restore_error:
+                    raise RuntimeError(
+                        f"{name} scope migration failed and restoration failed; inspect and restore its enabled state."
+                    ) from restore_error
+            raise
+
+
+def user_consent_from_receipt(args):
+    identity = json.loads(Path(args.identity).read_text(encoding="utf-8-sig"))
+    uuid.UUID(identity["tenant_id"])
+    for name in ("gateway", "mcp", "test_client"):
+        for field in ("app_id", "object_id"):
+            uuid.UUID(identity[name][field])
+    for name in ("gateway", "mcp"):
+        uuid.UUID(identity[name]["scope_id"])
+    uuid.UUID(identity["foundry"]["sp_id"])
+    if not args.apply:
+        print(json.dumps({
+            "mode": "plan", "tenant_id": identity["tenant_id"],
+            "scope_changes": ["gateway/access_as_user: User", "mcp/tools.read: User"],
+            "known_client_application": identity["test_client"]["app_id"],
+            "tenant_policy_changes": False, "permission_grants_created": False,
+            "writes_performed": False,
+        }, indent=2))
+        return
+    credential_type = AzureDeveloperCliCredential if args.use_azd else AzureCliCredential
+    graph = GraphClient(credential_type(tenant_id=identity["tenant_id"], process_timeout=120), "")
+    configure_user_consent(graph, identity)
+    for name in ("gateway", "mcp"):
+        actual = graph.request("GET", "/applications/" + identity[name]["object_id"] + "?$select=api")
+        scope = next(scope for scope in actual["api"]["oauth2PermissionScopes"]
+                     if scope["id"] == identity[name]["scope_id"])
+        if scope["type"] != "User" or not scope["isEnabled"]:
+            raise RuntimeError(f"{name} user-consent configuration was not confirmed.")
+        if name == "gateway" and identity["test_client"]["app_id"] not in actual["api"].get("knownClientApplications", []):
+            raise RuntimeError("Combined client/OBO consent configuration was not confirmed.")
+        identity[name]["consent_type"] = "User"
+    identity.update(consent_mode="user", user_consent_configured=True)
+    output = args.output or args.identity
+    save_receipt(output, identity)
+    print(json.dumps({
+        "receipt": output, "user_consent_configured": True, "consent_performed": False,
+        "next_step": "Run login with this identity receipt and an OS-encrypted --token-cache; tenant policy still applies.",
+    }, indent=2))
 
 
 def require_scope(graph, app, resource_app_id, scope_id):
@@ -340,6 +458,14 @@ def provision(graph, args):
         "permitted_user_object_ids": args.permitted_user_object_id,
         "obo_client_secret_uri": secret_uri, "consent_grant_ids": grants,
         "admin_consent_requested": args.grant_admin_consent,
+        "consent_mode": "user" if (
+            gateway.get("consent_type") == mcp.get("consent_type") == "User"
+            and test_client["app_id"] in (gateway_app.get("api", {}).get("knownClientApplications") or [])
+        ) else "admin",
+        "user_consent_configured": (
+            gateway.get("consent_type") == mcp.get("consent_type") == "User"
+            and test_client["app_id"] in (gateway_app.get("api", {}).get("knownClientApplications") or [])
+        ),
         "key_vault_name": urlparse(graph.vault_url).hostname.split(".")[0],
         "key_vault_subscription_id": args.key_vault_subscription_id or args.subscription_id,
     }
@@ -359,7 +485,7 @@ def cached_user_token(identity: dict, cache_path: str) -> str:
     import msal
 
     instruction = ("Run login --identity <receipt> --token-cache <protected-cache-path> "
-                   "with the intended user after administrator consent.")
+                   "with the intended user after the required user or administrator consent.")
     if not Path(cache_path).is_file():
         raise RuntimeError("Encrypted user token cache is missing. " + instruction)
     cache = encrypted_token_cache(cache_path)
@@ -393,13 +519,16 @@ def login(args):
         options["token_cache"] = encrypted_token_cache(args.token_cache)
     app = msal.PublicClientApplication(receipt["test_client"]["app_id"],
                                       authority="https://login.microsoftonline.com/" + receipt["tenant_id"], **options)
-    flow = app.initiate_device_flow(scopes=[receipt["gateway"]["scope"]])
+    scope = (receipt["gateway"]["audience"].rstrip("/") + "/.default"
+             if receipt.get("consent_mode") == "user" else receipt["gateway"]["scope"])
+    flow = app.initiate_device_flow(scopes=[scope])
     if "user_code" not in flow:
-        raise RuntimeError("Device login could not start; verify public-client registration and consent.")
+        raise RuntimeError("Device login could not start; verify public-client registration and required consent.")
     print(flow["message"], flush=True)
     result = app.acquire_token_by_device_flow(flow)
     if "access_token" not in result:
-        raise RuntimeError("Interactive user login failed or requires admin consent; no token saved.") from None
+        raise RuntimeError("Interactive user login failed or requires administrator approval under tenant policy; "
+                           "no successful login is claimed.") from None
     print(json.dumps({"authenticated": True, "user_object_id": result.get("id_token_claims", {}).get("oid")}))
 
 
@@ -424,7 +553,17 @@ def main(argv=None):
     consent.add_argument("--output", help="Updated nonsecret receipt path; defaults to --identity.")
     for name in ("apply", "include-azure-cli", "use-azd"):
         consent.add_argument("--" + name, action="store_true")
+    user_consent = commands.add_parser(
+        "user-consent", help="Opt in existing registrations to per-user combined OBO consent; never changes tenant policy.",
+    )
+    user_consent.add_argument("--identity", required=True)
+    user_consent.add_argument("--output")
+    for name in ("apply", "use-azd"):
+        user_consent.add_argument("--" + name, action="store_true")
     args = parser.parse_args(argv)
+    if args.command == "user-consent":
+        user_consent_from_receipt(args)
+        return
     if args.command == "consent":
         consent_from_receipt(args)
         return

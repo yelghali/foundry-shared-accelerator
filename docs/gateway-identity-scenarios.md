@@ -20,7 +20,7 @@ agents directly and does not replace the consumer token with its own identity.
 | Namespace | `gateway` | `gateway-app-alpha` | `gateway-user-obo` |
 | OBO credential | Not required | Not required | App-registration secret in private Key Vault, mounted using workload identity |
 | Failure behavior | Explicit denial | Explicit denial | Explicit denial; **never falls back to service identity** |
-| Live Azure status, 2026-11-24 | Models, MCP, hosted/declarative A2A and key denials passed | Same checks passed with a different verified backend identity; foreign keys rejected | Deployed, Vault secret mounted, model backend verified; positive user delegation **blocked by tenant admin consent** |
+| Live Azure status, 2026-11-24 | Models, MCP, hosted/declarative A2A and key denials passed | Same checks passed with a different verified backend identity; foreign keys rejected | User-consent registrations configured; positive delegation awaits interactive user consent and remains subject to tenant policy |
 
 [![APIM and LiteLLM identity scenarios](diagrams/gateway-identity-scenarios.svg)](diagrams/gateway-identity-scenarios.svg)
 
@@ -40,7 +40,7 @@ demo wrapper intentionally uses the same approved sample backends.
 The original native `Microsoft.ApiManagement/aigateways` scenario remains
 separate. These profiles use conventional **APIM Standard v2** and AKS.
 
-### Current deployment and required administrator action
+### Current deployment and consent options
 
 The three profiles are deployed in East US 2 using gateway release `20261124h`:
 
@@ -49,19 +49,26 @@ The three profiles are deployed in East US 2 using gateway release `20261124h`:
 * `https://fsa-lit1120-apim.azure-api.net/ai-user-obo`
 
 Non-secret A/B success receipts are under
-`.local\apim-litellm\<scenario>\acceptance.json`. C's honest blocked result is
-`.local\apim-litellm\user-obo\verification-status.json`, not an OBO success
-receipt. All wrong-audience calls to C, including its model route, return 401
+`.local\apim-litellm\<scenario>\acceptance.json`. C's original admin-consent blocker
+is recorded in `.local\apim-litellm\user-obo\verification-status.json`, not an OBO
+success receipt. The opt-in user-consent registration receipt is
+`.local\apim-litellm\entra-identity-user-consent.json`; it confirms configuration,
+not completed user consent or successful delegation. All wrong-audience calls to C, including its model route, return 401
 at APIM. C's workload-identity model inference was separately verified through
 the private operator API; this does not certify a user-admitted request.
 
-The available lab identity could create the applications and securely store
+During the original admin-consent setup, the available lab identity could create the applications and securely store
 their credential, but Microsoft Graph rejected
 `POST /oauth2PermissionGrants` with **403 Authorization_RequestDenied**. It has
 Global Reader, not the tenant-admin authority needed to consent. No user
 assertion was fabricated and no service-identity fallback was enabled.
 
-An authorized tenant administrator can complete **only consent**, without
+The current lab scopes now permit user consent, with combined OBO consent
+configured for the test client. Use the [per-user consent instructions](#optional-per-user-consent-for-the-development-scenario)
+to sign in interactively. Tenant policy can still require administrator approval;
+no tenant policy or resource RBAC was relaxed.
+
+Alternatively, an authorized tenant administrator can complete **only consent**, without
 Key Vault or Kubernetes access:
 
 ```powershell
@@ -78,7 +85,7 @@ only for the optional CLI development caller. The script updates the non-secret
 receipt only after every requested grant succeeds. A denied attempt was tested
 live and preserved the original non-consented receipt.
 
-Then authenticate the actual user and rerun C's live tests. Positive user-OBO
+After allowed user consent or administrator consent, authenticate the actual user and rerun C's live tests. Positive user-OBO
 agent/MCP invocation and cross-user Foundry Task isolation remain **unverified
 until those steps succeed**. C is not certified as working user delegation yet.
 
@@ -201,7 +208,8 @@ Enterprise/OSS A2A OBO support. The same in-process integration verifies the use
 it for the Foundry scope, caches separately per user assertion/scope, and uses
 the delegated token for protected discovery and invocation. It does not modify
 the registry with user credentials and never falls back to workload identity.
-Positive C validation remains blocked by tenant consent.
+Positive C validation still requires actual user consent/login and may require
+administrator approval under tenant policy.
 
 The loopback HTTP adapter is retained **only for A/B service-identity MCP**;
 it has no configured Foundry targets. C uses native MCP OBO plus the in-process
@@ -530,6 +538,60 @@ python -m samples.consume_gateway --endpoint "https://<apim>.azure-api.net/ai" -
 For C, use its endpoint and virtual key plus `--identity` and
 `--user-token-cache` to select the explicitly encrypted user cache instead of
 an environment bearer. A failed selected login never falls back to another user.
+
+## Optional per-user consent for the development scenario
+
+New API registrations still default to **admin-only** scopes. To opt existing
+development registrations into user consent without changing tenant policy:
+
+```powershell
+# Plan only; no authentication or writes.
+python -m accelerator.entra_setup user-consent `
+  --identity .local\apim-litellm\entra-identity.json
+
+# App-owner operation; no Vault/AKS access, secret rotation, or permission grants.
+python -m accelerator.entra_setup user-consent `
+  --identity .local\apim-litellm\entra-identity.json `
+  --output .local\apim-litellm\entra-identity-user-consent.json `
+  --use-azd --apply
+```
+
+The command preserves the existing app and scope IDs. It changes only the
+gateway `access_as_user` and MCP `tools.read` scopes from `Admin` to `User`,
+temporarily disabling each scope before changing its consent metadata as
+required by Graph. A failed scope update attempts to restore its original
+enabled configuration and reports failure explicitly. Other scopes, tenant
+policy, API permission requirements, RBAC and existing grants are not changed.
+
+The gateway API also records the existing public test-client app in
+`knownClientApplications`. Login then requests the gateway's `/.default` scope,
+so Entra can present the combined client -> gateway -> downstream consent.
+The Azure AI delegated permission must itself be user-consent eligible; the
+command checks it before changing either custom API.
+
+**Configured does not mean consented.** The new receipt says
+`consent_mode: user` and `user_consent_configured: true`; it does not mark
+administrator consent as granted or manufacture a user token. Complete a real
+interactive login with the intended allowlisted user:
+
+```powershell
+python -m accelerator.entra_setup login `
+  --identity .local\apim-litellm\entra-identity-user-consent.json `
+  --token-cache .local\apim-litellm\user-obo\user-token-cache.bin
+
+.\scripts\Test-GatewayScenarios.ps1 -Scenarios user-obo -Live -UseAzd `
+  -IdentityFile .local\apim-litellm\entra-identity-user-consent.json `
+  -UserTokenCache .local\apim-litellm\user-obo\user-token-cache.bin
+```
+
+The cache uses OS encryption, never plaintext. A missing/invalid user cache
+cannot fall back to the operator's login or the gateway workload identity.
+Tenant policy may still require administrator approval for these applications;
+this option does **not** disable that policy, claim publisher verification, or
+grant the user any additional Foundry/Blob access. A/B service-identity scenarios
+do not depend on these interactive grants and remain independently testable.
+
+See [Microsoft's combined OBO consent guidance](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-on-behalf-of-flow#default-and-combined-consent).
 
 ## Explicit non-goals and remaining verification
 

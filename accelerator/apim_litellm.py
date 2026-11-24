@@ -182,8 +182,12 @@ def verify(
     if scenario == "user-obo":
         if not identity_receipt:
             raise ValueError("user-obo acceptance requires an Entra identity receipt.")
-        if not identity_receipt.get("admin_consent_requested"):
+        user_consent = (identity_receipt.get("consent_mode") == "user"
+                        and identity_receipt.get("user_consent_configured") is True)
+        if not identity_receipt.get("admin_consent_requested") and not user_consent:
             raise ValueError("Tenant admin consent is not recorded; run Entra provisioning with --grant-admin-consent first.")
+        if user_consent and not user_token_cache:
+            raise ValueError("User-consent acceptance requires an actual user login and --user-token-cache.")
         scope = identity_receipt["gateway"]["scope"]
     if user_token_cache:
         if scenario != "user-obo" or identity_receipt is None:

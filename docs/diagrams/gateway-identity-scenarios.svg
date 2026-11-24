@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1000" viewBox="0 0 1440 1000" role="img" aria-labelledby="title description">
   <title id="title">APIM and LiteLLM identity scenarios</title>
-  <desc id="description">Consumer requests always pass through APIM and LiteLLM. Models use workload identity. Agents and MCP use a shared identity, a dedicated application identity, or user OBO. Administration is a separate private local tunnel. User OBO is awaiting tenant administrator consent.</desc>
+  <desc id="description">Consumer requests always pass through APIM and LiteLLM. Models use workload identity. Agents and MCP use a shared identity, a dedicated application identity, or user OBO. Administration is a separate private local tunnel. User-consent registrations are configured; interactive user consent and delegated validation are pending.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#495057"/></marker>
     <style>
@@ -97,7 +97,7 @@
   <rect x="45" y="880" width="1350" height="65" rx="7" fill="#FFF4CE" stroke="#F7630C"/>
   <text x="55" y="906" class="body">C  user-obo</text>
   <text x="360" y="906" class="body">Models: WI | MCP: native OBO | Agents: custom OBO</text>
-  <text x="1110" y="906" class="body">Admin consent pending</text>
+  <text x="1110" y="906" class="body">User consent pending</text>
   <text x="55" y="932" class="small">Deployed and fail-closed. Positive delegated invocation and cross-user task isolation are not yet certified.</text>
   <text x="35" y="985" class="small">WI = AKS Workload Identity. User identity at MCP ingress does not automatically propagate to Blob or an agent's downstream tools.</text>
 </svg>

@@ -17,6 +17,28 @@ def response(value, status=200):
 
 
 class AcceptanceTests(unittest.TestCase):
+    def test_user_consent_configuration_does_not_replace_an_actual_user_login(self):
+        identity = {"consent_mode": "user", "user_consent_configured": True, "admin_consent_requested": False}
+        with patch("accelerator.apim_litellm.credential"), \
+             patch("accelerator.apim_litellm.read_key") as key, \
+             patch("accelerator.apim_litellm.requests.post") as post:
+            with self.assertRaisesRegex(ValueError, "actual user login"):
+                verify(DEPLOYMENT, scenario="user-obo", identity_receipt=identity)
+        key.assert_not_called()
+        post.assert_not_called()
+
+    def test_user_consent_acceptance_uses_the_selected_user_cache_not_operator_identity(self):
+        identity = {"consent_mode": "user", "user_consent_configured": True, "admin_consent_requested": False,
+                    "gateway": {"scope": "api://gateway/access_as_user"}}
+        with patch("accelerator.apim_litellm.credential") as operator, \
+             patch("accelerator.entra_setup.cached_user_token", return_value="delegated-user") as cached, \
+             patch("accelerator.apim_litellm.read_key", return_value="sk-test"), \
+             patch("accelerator.apim_litellm.requests.post", side_effect=RuntimeError("stop after user selection")):
+            with self.assertRaisesRegex(RuntimeError, "stop after user selection"):
+                verify(DEPLOYMENT, scenario="user-obo", identity_receipt=identity, user_token_cache="encrypted")
+        cached.assert_called_once_with(identity, "encrypted")
+        operator.return_value.get_token.assert_not_called()
+
     def test_failed_live_rerun_replaces_stale_success_and_restores_kubeconfig(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

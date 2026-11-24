@@ -3,11 +3,12 @@ import io
 import json
 import unittest
 from contextlib import redirect_stdout
+from copy import deepcopy
 from unittest.mock import Mock, patch
 
 from accelerator.entra_setup import (
     GraphClient, IdentityError, ensure_application, ensure_obo_secret,
-    grant_consent, main, provision, VAULT_PROXY_SCRIPT, cached_user_token,
+    grant_consent, main, provision, VAULT_PROXY_SCRIPT, cached_user_token, configure_user_consent,
 )
 
 
@@ -24,6 +25,132 @@ class EntraSetupTests(unittest.TestCase):
                         "scope": "https://ai.azure.com/user_impersonation"},
             "admin_consent_requested": False, "consent_grant_ids": [],
         }
+
+    def user_consent_fixture(self):
+        receipt = self.consent_receipt()
+        apps = {}
+        for index, name in enumerate(("gateway", "mcp", "test_client"), 1):
+            entry = receipt[name]
+            entry.update(app_id=f"10000000-0000-0000-0000-{index:012d}",
+                         object_id=f"20000000-0000-0000-0000-{index:012d}")
+            entry["scope_id"] = f"30000000-0000-0000-0000-{index:012d}"
+            scopes = ([] if name == "test_client" else [{
+                "id": entry["scope_id"], "value": entry["scope"].rsplit("/", 1)[-1],
+                "type": "Admin", "isEnabled": True, "adminConsentDisplayName": "Original",
+            }])
+            apps[name] = {
+                "id": entry["object_id"], "appId": entry["app_id"], "displayName": name,
+                "api": {"requestedAccessTokenVersion": 2, "oauth2PermissionScopes": scopes,
+                        "knownClientApplications": ["existing-client"]},
+            }
+        foundry = {"oauth2PermissionScopes": [{
+            "id": "foundry-scope", "value": "user_impersonation", "type": "User", "isEnabled": True,
+        }]}
+        receipt["foundry"]["resource_app_id"] = "40000000-0000-0000-0000-000000000001"
+        for client, resource_id, scope_id in (
+            ("test_client", receipt["gateway"]["app_id"], receipt["gateway"]["scope_id"]),
+            ("gateway", receipt["mcp"]["app_id"], receipt["mcp"]["scope_id"]),
+            ("gateway", receipt["foundry"]["resource_app_id"], "foundry-scope"),
+        ):
+            apps[client].setdefault("requiredResourceAccess", []).append({
+                "resourceAppId": resource_id, "resourceAccess": [{"id": scope_id, "type": "Scope"}],
+            })
+        return receipt, apps, foundry
+
+    def test_user_consent_plan_has_no_authentication_or_writes(self):
+        receipt, _, _ = self.user_consent_fixture()
+        with patch("accelerator.entra_setup.Path.read_text", return_value=json.dumps(receipt)), \
+             patch("accelerator.entra_setup.AzureCliCredential") as credential, \
+             patch("accelerator.entra_setup.GraphClient") as graph, \
+             patch("accelerator.entra_setup.save_receipt") as save, redirect_stdout(io.StringIO()) as output:
+            main(["user-consent", "--identity", "receipt.json"])
+        credential.assert_not_called()
+        graph.assert_not_called()
+        save.assert_not_called()
+        self.assertFalse(json.loads(output.getvalue())["tenant_policy_changes"])
+
+    def test_user_consent_preserves_ids_and_other_configuration_and_is_idempotent(self):
+        receipt, apps, foundry = self.user_consent_fixture()
+        original = deepcopy(apps)
+        graph = Mock()
+
+        def request(method, path, body=None):
+            if path.startswith("/servicePrincipals/"):
+                return deepcopy(foundry)
+            app = next(app for app in apps.values() if path.split("?")[0].endswith(app["id"]))
+            if method == "PATCH":
+                app["api"] = deepcopy(body["api"])
+                return {}
+            return deepcopy(app)
+
+        graph.request.side_effect = request
+        configure_user_consent(graph, receipt)
+        self.assertEqual(len([c for c in graph.request.call_args_list if c.args[0] == "PATCH"]), 4)
+        patches = [c for c in graph.request.call_args_list if c.args[0] == "PATCH"]
+        for before, after in zip(patches[::2], patches[1::2]):
+            self.assertFalse(before.args[2]["api"]["oauth2PermissionScopes"][0]["isEnabled"])
+            scope = after.args[2]["api"]["oauth2PermissionScopes"][0]
+            self.assertTrue(scope["isEnabled"])
+            self.assertEqual(scope["type"], "User")
+            self.assertEqual(scope["id"], before.args[2]["api"]["oauth2PermissionScopes"][0]["id"])
+        self.assertEqual(apps["gateway"]["api"]["requestedAccessTokenVersion"], 2)
+        self.assertEqual(apps["gateway"]["api"]["knownClientApplications"],
+                         ["existing-client", receipt["test_client"]["app_id"]])
+        self.assertEqual(original["gateway"]["api"]["oauth2PermissionScopes"][0]["type"], "Admin")
+        graph.request.reset_mock()
+        configure_user_consent(graph, receipt)
+        self.assertFalse(any(c.args[0] != "GET" for c in graph.request.call_args_list))
+
+    def test_user_consent_preflights_external_scope_and_restores_failed_scope_update(self):
+        receipt, apps, foundry = self.user_consent_fixture()
+        graph = Mock()
+        foundry["oauth2PermissionScopes"][0]["type"] = "Admin"
+        graph.request.side_effect = [*apps.values(), foundry]
+        with self.assertRaisesRegex(ValueError, "administrator is required"):
+            configure_user_consent(graph, receipt)
+        self.assertFalse(any(c.args[0] == "PATCH" for c in graph.request.call_args_list))
+        foundry["oauth2PermissionScopes"][0]["type"] = "User"
+        graph.reset_mock()
+        graph.request.side_effect = [*apps.values(), foundry, {}, IdentityError(403, "Denied"), {}]
+        with self.assertRaises(IdentityError):
+            configure_user_consent(graph, receipt)
+        graph.request.assert_called_with(
+            "PATCH", "/applications/" + apps["mcp"]["id"], {"api": apps["mcp"]["api"]},
+        )
+
+    def test_user_consent_apply_records_configuration_not_an_admin_or_user_grant(self):
+        receipt, apps, _ = self.user_consent_fixture()
+        for app in apps.values():
+            for scope in app["api"]["oauth2PermissionScopes"]:
+                scope["type"] = "User"
+        apps["gateway"]["api"]["knownClientApplications"].append(receipt["test_client"]["app_id"])
+        with patch("accelerator.entra_setup.Path.read_text", return_value=json.dumps(receipt)), \
+             patch("accelerator.entra_setup.AzureDeveloperCliCredential"), \
+             patch("accelerator.entra_setup.GraphClient") as graph, \
+             patch("accelerator.entra_setup.configure_user_consent") as configure, \
+             patch("accelerator.entra_setup.save_receipt") as save, redirect_stdout(io.StringIO()) as output:
+            graph.return_value.request.side_effect = [apps["gateway"], apps["mcp"]]
+            main(["user-consent", "--identity", "receipt.json", "--apply", "--use-azd"])
+        configure.assert_called_once()
+        self.assertIs(configure.call_args.args[0], graph.return_value)
+        saved = save.call_args.args[1]
+        self.assertEqual(saved["consent_mode"], "user")
+        self.assertTrue(saved["user_consent_configured"])
+        self.assertFalse(saved["admin_consent_requested"])
+        self.assertFalse(json.loads(output.getvalue())["consent_performed"])
+
+    def test_user_consent_login_requests_default_for_combined_permissions(self):
+        receipt, _, _ = self.user_consent_fixture()
+        receipt.update(consent_mode="user", user_consent_configured=True)
+        receipt["gateway"]["audience"] = "api://" + receipt["gateway"]["app_id"]
+        with patch("accelerator.entra_setup.Path.read_text", return_value=json.dumps(receipt)), \
+             patch("msal.PublicClientApplication") as public_client, redirect_stdout(io.StringIO()) as output:
+            app = public_client.return_value
+            app.initiate_device_flow.return_value = {"user_code": "code", "message": "Complete user consent"}
+            app.acquire_token_by_device_flow.return_value = {"access_token": "must-not-be-printed"}
+            main(["login", "--identity", "receipt.json"])
+        app.initiate_device_flow.assert_called_once_with(scopes=[receipt["gateway"]["audience"] + "/.default"])
+        self.assertNotIn("must-not-be-printed", output.getvalue())
 
     def test_consent_plan_never_authenticates_or_writes(self):
         with patch("accelerator.entra_setup.Path.read_text", return_value=json.dumps(self.consent_receipt())), \
