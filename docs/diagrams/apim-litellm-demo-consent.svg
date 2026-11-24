@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1020" viewBox="0 0 1440 1020" role="img" aria-labelledby="title description">
+  <title id="title">Standalone demo: app registrations and consent</title>
+  <desc id="description">Scenario C has a public test-client registration, a confidential gateway API/client registration, and an MCP resource API registration. The gateway also requests delegated access to the existing Azure AI API. Combined consent uses the gateway's knownClientApplications list and a default-scope interactive login. Consent never replaces backend authorization. This is a permission map, not an HTTP request topology.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#495057"/></marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #000000; }
+      .title { font-size: 26px; font-weight: 700; }
+      .heading { font-size: 19px; font-weight: 700; }
+      .body { font-size: 16px; }
+      .small { font-size: 14px; }
+      .line { fill: none; stroke: #495057; stroke-width: 2; marker-end: url(#arrow); }
+      .config { stroke-dasharray: 7 5; }
+    </style>
+  </defs>
+  <rect width="1440" height="1020" fill="#ffffff"/>
+  <text x="40" y="45" class="title">Standalone demo: app registrations and consent for C</text>
+  <text x="40" y="80" class="body">Permission/configuration map, NOT extra HTTP services. Agent runtime remains LiteLLM directly to Foundry.</text>
+  <path class="line config" d="M650 240V150H215V240"/>
+  <text x="350" y="125" class="body">Gateway knownClientApplications includes the public client app ID</text>
+  <text x="350" y="190" class="small">Interactive gateway /.default login can bundle client + downstream consent</text>
+
+  <rect x="40" y="240" width="350" height="190" rx="12" fill="#CFE4FA" stroke="#0078D4" stroke-width="2"/>
+  <text x="60" y="278" class="heading">Public test-client app</text>
+  <text x="60" y="320" class="body">Interactive user login</text>
+  <text x="60" y="355" class="body">No client secret</text>
+  <text x="60" y="390" class="body">Requests access to gateway API</text>
+
+  <rect x="540" y="240" width="420" height="190" rx="12" fill="#DFF6DD" stroke="#107C10" stroke-width="2"/>
+  <text x="560" y="278" class="heading">Confidential gateway app</text>
+  <text x="560" y="320" class="body">API exposes access_as_user</text>
+  <text x="560" y="355" class="body">OBO client requests downstream scopes</text>
+  <text x="560" y="390" class="body">Different identity from the gateway WI</text>
+
+  <rect x="1110" y="240" width="290" height="190" rx="12" fill="#E8DAEF" stroke="#5C2D91" stroke-width="2"/>
+  <text x="1130" y="278" class="heading">MCP API app</text>
+  <text x="1130" y="320" class="body">Exposes tools.read</text>
+  <text x="1130" y="355" class="body">FastMCP validates user,</text>
+  <text x="1130" y="390" class="body">client, audience and scope</text>
+
+  <path class="line" d="M390 340H540"/>
+  <text x="404" y="320" class="small">access_as_user</text>
+  <path class="line" d="M960 340H1110"/>
+  <text x="985" y="320" class="small">tools.read</text>
+
+  <rect x="540" y="650" width="420" height="170" rx="12" fill="#E8DAEF" stroke="#5C2D91" stroke-width="2"/>
+  <text x="560" y="690" class="heading">Existing Azure AI service principal</text>
+  <text x="560" y="735" class="body">Delegated user_impersonation</text>
+  <text x="560" y="775" class="body">Foundry runtime RBAC still required</text>
+  <path class="line" d="M750 430V650"/>
+  <text x="770" y="520" class="body">user_impersonation</text>
+  <text x="770" y="550" class="small">Request https://ai.azure.com/.default</text>
+
+  <rect x="40" y="650" width="350" height="170" rx="12" fill="#FFF4CE" stroke="#F7630C" stroke-width="2"/>
+  <text x="60" y="690" class="heading">Consent choices</text>
+  <text x="60" y="730" class="body">New custom scopes: Admin default</text>
+  <text x="60" y="765" class="body">User: explicit demo opt-in</text>
+  <text x="60" y="800" class="body">Tenant policy still applies</text>
+
+  <rect x="1110" y="650" width="290" height="170" rx="12" fill="#F3F2F1" stroke="#495057" stroke-width="2"/>
+  <text x="1130" y="690" class="heading">Private Key Vault</text>
+  <text x="1130" y="730" class="body">Gateway app client secret</text>
+  <text x="1130" y="765" class="body">AKS WI + CSI delivery</text>
+  <text x="1130" y="800" class="body">No secret in YAML/state</text>
+  <path class="line config" d="M960 395H1035V735H1110"/>
+  <text x="1050" y="485" class="small">Credential custody;</text>
+  <text x="1050" y="512" class="small">not another runtime hop</text>
+
+  <text x="40" y="885" class="body">Solid arrows: configured delegated API permissions. Dashed arrows: configuration / credential relationships.</text>
+  <text x="40" y="930" class="body">Consent allows delegation; it does not grant Foundry RBAC or bypass MCP user/client allowlists.</text>
+  <text x="40" y="975" class="body">Models in A/B/C use gateway WI. A/B backend service calls do not use these three custom OBO app registrations.</text>
+</svg>

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1000" viewBox="0 0 1440 1000" role="img" aria-labelledby="title description">
-  <title id="title">APIM and LiteLLM identity scenarios</title>
+  <title id="title">Standalone APIM and LiteLLM demo: identity scenarios</title>
   <desc id="description">Consumer requests always pass through APIM and LiteLLM. Models use workload identity. Agents and MCP use a shared identity, a dedicated application identity, or user OBO. Administration is a separate private local tunnel. User OBO passed live single-user MCP and hosted/declarative A2A tests after interactive consent; cross-user task isolation remains unverified.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#495057"/></marker>
@@ -14,7 +14,7 @@
     </style>
   </defs>
   <rect width="1440" height="1000" fill="#ffffff"/>
-  <text x="35" y="42" class="title">APIM exposure + LiteLLM OSS AI gateway</text>
+  <text x="35" y="42" class="title">Standalone demo: APIM + LiteLLM OSS AI gateway</text>
   <text x="35" y="70" class="body">Three separately deployed profiles. Consumer virtual keys and downstream Entra identities are different credentials.</text>
 
   <rect x="600" y="100" width="805" height="365" rx="14" fill="none" stroke="#0078D4" stroke-width="2"/>

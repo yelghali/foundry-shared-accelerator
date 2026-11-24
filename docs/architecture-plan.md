@@ -3,9 +3,10 @@
 Implementation and Azure validation date: **2026-10-23**.
 This document replaces the initial capability assumptions with measured behavior.
 
-This describes the original native Azure AI Gateway scenario. The additive
-[APIM Standard v2 + LiteLLM scenario](apim-litellm.md) has independent Terraform
-state, AKS workloads, MCP and a Foundry-hosted A2A sample.
+This describes the original native Azure AI Gateway scenario. The
+[standalone APIM Standard v2 + LiteLLM demo](../scenarios/apim-litellm/README.md)
+has independent Terraform state, AKS workloads, MCP and a Foundry-hosted A2A
+sample. It is not integrated into platform deployment or team onboarding.
 
 ## Resource boundaries
 

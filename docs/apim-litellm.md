@@ -1,4 +1,9 @@
-# Alternative scenario: APIM Standard v2 + LiteLLM on AKS
+# Standalone demo: APIM Standard v2 + LiteLLM on AKS
+
+See the [demo README](../scenarios/apim-litellm/README.md) for model/A/B/C
+authentication diagrams, app registrations and consent. This demo remains
+separate from platform deployment and team onboarding; it is not a Day 0/1
+gateway-provider integration.
 
 **Current authentication profiles:** use the
 [identity-scenario guide](gateway-identity-scenarios.md) for native OSS virtual

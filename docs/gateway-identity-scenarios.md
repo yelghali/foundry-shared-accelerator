@@ -1,4 +1,9 @@
-# APIM + LiteLLM OSS: application and user identity scenarios
+# Standalone demo: APIM + LiteLLM OSS identity scenarios
+
+Start with the [demo README and per-scenario auth diagrams](../scenarios/apim-litellm/README.md).
+This runbook deploys a standalone demo; it is **not integrated into Day 0
+platform setup or Day 1/team onboarding**. Existing Foundry/model resources
+are explicit inputs, not automatically onboarded team projects.
 
 ## TL;DR
 

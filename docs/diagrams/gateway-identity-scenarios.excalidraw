@@ -3,7 +3,7 @@
   "version": 2,
   "source": "copilot",
   "elements": [
-    {"id":"title","type":"text","x":35,"y":20,"width":1350,"height":65,"text":"APIM exposure + LiteLLM OSS AI gateway","fontSize":26,"fontFamily":2,"strokeColor":"#000000"},
+    {"id":"title","type":"text","x":35,"y":20,"width":1350,"height":65,"text":"Standalone demo: APIM + LiteLLM OSS AI gateway","fontSize":26,"fontFamily":2,"strokeColor":"#000000"},
     {"id":"aks","type":"rectangle","x":600,"y":100,"width":805,"height":365,"strokeColor":"#0078D4","backgroundColor":"transparent","fillStyle":"solid","strokeWidth":2,"roundness":{"type":3}},
     {"id":"aks-label","type":"text","x":620,"y":110,"width":760,"height":45,"text":"AKS: separate namespace, identity and key store per profile","fontSize":17,"fontFamily":2,"strokeColor":"#000000"},
     {"id":"consumer","type":"rectangle","x":35,"y":160,"width":225,"height":105,"strokeColor":"#0078D4","backgroundColor":"#CFE4FA","fillStyle":"solid","strokeWidth":2,"boundElements":[{"type":"text","id":"consumer-text"}]},

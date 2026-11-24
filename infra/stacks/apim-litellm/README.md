@@ -1,4 +1,8 @@
-# APIM + LiteLLM isolated infrastructure
+# Standalone APIM + LiteLLM demo infrastructure
+
+Entry point: [demo README and auth diagrams](../../../scenarios/apim-litellm/README.md).
+This root is not wired into the main platform deployment or team-onboarding
+scripts; keep its state and deployment lifecycle independent.
 
 Independent Terraform root; does not change or consume the native `aigateway` scenario's state. Creates its own resource group, AKS, ACR, Standard v2 APIM, workload identities, and private-access blob container. Existing Foundry/model resources are reused, not created or reconfigured. Role assignments, optional peerings, and DNS links on existing resources are owned by this root.
 
