@@ -105,7 +105,12 @@ Write-Output 'Failure cleanup verified'
     assert "Failure cleanup verified" in result.stdout
 
 
-def test_consumer_loader_sets_current_session_without_printing_credentials():
+@pytest.mark.parametrize(("scenario", "auth_summary"), [
+    ("shared-service", "shared gateway workload identity, not user OBO"),
+    ("dedicated-application", "dedicated app-alpha gateway workload identity, not user OBO"),
+    ("user-obo", "Hosted/prompt agents (A2A and Responses): custom user OBO"),
+])
+def test_consumer_loader_sets_current_session_without_printing_credentials(scenario, auth_summary):
     result = shell(r"""
 $beforePath = $env:PATH
 $env:KUBECONFIG = 'original-kubeconfig'
@@ -113,15 +118,19 @@ function fakepython {
     $global:LASTEXITCODE = 0
     '{"key":"sk-test-consumer-not-real","token":"test-entra-not-real","endpoint":"https://demo.azure-api.net/ai"}'
 }
-& .\scripts\Import-GatewayConsumerEnv.ps1 -PythonExecutable fakepython -UseAzd
+& .\scripts\Import-GatewayConsumerEnv.ps1 -Scenario __SCENARIO__ -PythonExecutable fakepython -UseAzd
 if ($env:LITELLM_VIRTUAL_KEY -ne 'sk-test-consumer-not-real') { throw 'Application key not loaded' }
 if ($env:GATEWAY_ACCESS_TOKEN -ne 'test-entra-not-real') { throw 'Caller token not loaded' }
 if ($env:GATEWAY_ENDPOINT -ne 'https://demo.azure-api.net/ai') { throw 'Endpoint not loaded' }
 if ($env:PATH -ne $beforePath -or $env:KUBECONFIG -ne 'original-kubeconfig') { throw 'Operator environment leaked' }
 Write-Output 'Current-session credentials verified'
-""")
+""".replace("__SCENARIO__", scenario))
     assert result.returncode == 0, result.stderr
     assert "Current-session credentials verified" in result.stdout
+    assert "Setup only: no model, MCP or agent inference was called." in result.stdout
+    assert "replaces the previous scenario" in result.stdout
+    assert auth_summary in result.stdout
+    assert "--kind hosted-agent --agent-name hosted" in result.stdout
     assert "sk-test-consumer-not-real" not in result.stdout
     assert "test-entra-not-real" not in result.stdout
 

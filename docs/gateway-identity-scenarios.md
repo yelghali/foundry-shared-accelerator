@@ -73,6 +73,12 @@ It never falls back to an operator token. After changing scenario, run the same
 four commands below: the helper selects that profile's APIM base path and key.
 Rerun the loader when the Entra token expires.
 
+**The loader is setup, not an inference test.** It reads the consumer virtual
+key, obtains/loads the selected caller token and sets the endpoint in your
+current terminal. It does not invoke an MCP tool or either agent. Loading B
+and then C in the same terminal selects **C only** for subsequent calls; it
+does not run both scenarios. Execute a consumer command below after loading.
+
 ### 2. Run all four combinations
 
 **Prompt agent - Responses API**
@@ -319,6 +325,57 @@ Increasing output verbosity adds no extra remote calls.
 and validates the caller token. LiteLLM is the AI gateway: native virtual keys,
 model routing and model/MCP/agent permissions. APIM does not invoke models or
 agents directly and does not replace the consumer token with its own identity.
+
+### MCP and agent authentication: native OBO versus workload identity
+
+**Yes, user OBO works over A2A in this demo, for both hosted and prompt
+agents.** It is an HTTPS authentication exchange around A2A; the A2A message
+does not need to contain a user token or an `agent_reference`.
+
+| Hop / implementation | A: shared service | B: dedicated application | C: user OBO |
+|---|---|---|---|
+| LiteLLM runs on AKS with workload identity | Yes: shared gateway managed identity | Yes: separate app-alpha gateway managed identity | Yes, but it does not replace the user for the delegated calls below |
+| LiteLLM -> MCP | Shared gateway workload identity, via MCP-only token adapter | Dedicated gateway workload identity, via MCP-only token adapter | **User OBO: native LiteLLM MCP Entra integration** |
+| Uses the linked LiteLLM **MCP OBO Auth** feature | No | No | **Yes:** `auth_type: oauth2_token_exchange`, `token_exchange_profile: entra_obo` |
+| LiteLLM -> hosted agent, **A2A** | Native LiteLLM workload federation | Native LiteLLM workload federation with B's identity | **User OBO: custom in-process agent authentication hook** |
+| LiteLLM -> prompt agent, **A2A** | Native LiteLLM workload federation | Native LiteLLM workload federation with B's identity | **User OBO: same custom agent hook** |
+| LiteLLM -> hosted/prompt agent, **Responses** | Workload identity through custom fixed-endpoint auth hook | B's workload identity through that hook | **User OBO through that custom hook** |
+| Hosted agent -> private model/MCP | Hosted runtime identity | Hosted runtime identity | Hosted runtime identity; **not delegated user OBO** |
+| Published prompt agent -> MCP | Not enabled | Not enabled | Not enabled; native private prompt-MCP binding has not passed validation |
+| OBO confidential-client credential | None | None | Gateway app-registration secret in private Key Vault, mounted with AKS workload identity |
+| If delegated authentication fails | Not applicable | Not applicable | Explicit failure; no service-identity fallback |
+
+Reference: [LiteLLM MCP OBO Auth: Microsoft Entra ID](https://docs.litellm.ai/docs/mcp_obo_auth#microsoft-entra-id-azure-ad).
+**That feature covers MCP, not A2A/agent OBO.** The demo's native MCP
+configuration is generated in `scenarios/apim-litellm/render.py`;
+`foundry_a2a.py` implements the custom agent A2A exchange and
+`agent_responses.py` implements agent Responses authentication.
+
+In C, the user signs in/consents to the gateway app. The gateway exchanges the
+incoming user assertion for the appropriate delegated target token:
+
+```text
+User token for gateway + consumer virtual key
+  -> APIM -> LiteLLM
+       -> native Entra OBO -> MCP-scoped user token -> MCP
+       -> custom Entra OBO -> https://ai.azure.com/.default user token
+                            -> hosted OR prompt agent (A2A OR Responses)
+```
+
+For A2A, the exchanged token is the backend `Authorization: Bearer ...`
+header, not a JSON-RPC parameter. This covers agent discovery/invocation;
+hosted saved-task retrieval also passed the live C acceptance checks.
+Real-user C MCP and agent OBO were previously tested live; this table does
+not claim end-to-end delegation inside the hosted agent.
+
+**An absent A2A `agent_reference` is not an OBO failure.** A2A returns Task,
+context, state and artifact data; a Foundry resource-name field is not
+required. The consumer prints the configured demo naming convention
+separately from actual server metadata and never invents a reference. Use
+Responses to see the server-returned reference, and the A2A SendMessage/GetTask
+checks for protocol evidence. Independently proving the hosting target needs
+the deployed registry and correlated server telemetry, not an LLM claiming
+its own name.
 
 ### Model-call authentication: A, B and C
 

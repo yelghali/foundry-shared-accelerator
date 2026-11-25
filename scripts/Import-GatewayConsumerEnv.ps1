@@ -92,6 +92,17 @@ try {
     Write-Host "Consumer environment loaded for $Scenario in this PowerShell session."
     Write-Host "Endpoint: $env:GATEWAY_ENDPOINT"
     Write-Host "Application virtual key and Entra token loaded (not printed). Rerun to refresh."
+    Write-Host "Setup only: no model, MCP or agent inference was called."
+    Write-Host "This replaces the previous scenario's credentials/endpoint in this terminal."
+    if ($Scenario -eq "user-obo") {
+        Write-Host "MCP: native LiteLLM Entra user OBO. Hosted/prompt agents (A2A and Responses): custom user OBO."
+        Write-Host "Agent downstream model/MCP calls use the hosted runtime identity, not user OBO."
+    }
+    else {
+        $identityDescription = if ($Scenario -eq "shared-service") { "shared gateway" } else { "dedicated app-alpha gateway" }
+        Write-Host "MCP and agent calls use the $identityDescription workload identity, not user OBO."
+    }
+    Write-Host ('Next (from repository root): & "' + $PythonExecutable + '" -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind hosted-agent --agent-name hosted')
 }
 finally {
     $raw = $null
