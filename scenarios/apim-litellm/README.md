@@ -21,6 +21,9 @@ Jump to: [Models](#model-calling-applies-to-a-b-and-c),
 [registrations and consent](#app-registrations-permissions-and-consent),
 or [deployment and tests](#deploy-and-test-this-standalone-demo).
 
+For copy/paste commands, expected outputs and protocol evidence, use the
+[hands-on lab: prompt/hosted agents over Responses and A2A](../../docs/gateway-identity-scenarios.md#hands-on-lab-test-prompt-and-hosted-agents-through-both-apis).
+
 ## What this demo shows
 
 ### Current private profile: deployed and tested on 2026-11-25
@@ -451,6 +454,12 @@ Consumer calls and live agent checks print the HTTP method, actual gateway URL
 and protocol/alias to stderr, without credentials or request bodies. JSON
 results remain on stdout. These are client-side URLs (APIM or a direct LiteLLM
 endpoint you supply), not fabricated traces of internal Foundry hops.
+Agent calls additionally summarize actual `agent_reference` metadata when
+returned, Task/context/artifact IDs for A2A, HTTP elapsed time and selected
+safe response/correlation/latency headers. A client-side expected demo name is
+labeled separately and never inserted into the response JSON. A2A normally
+does not return a Foundry `agent_reference`; the script says so explicitly.
+See the lab guide's [verbose-output explanation and measured hosted latency](../../docs/gateway-identity-scenarios.md#why-can-the-hosted-agent-be-slower).
 
 ```powershell
 # C: loads its consumer key and actual cached user assertion, not an operator token.
