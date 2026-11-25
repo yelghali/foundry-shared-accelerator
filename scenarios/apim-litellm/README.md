@@ -427,6 +427,10 @@ address from your own service instead of copying that value to another lab.
 For a normal consumer with its own virtual key/Entra token:
 
 ```powershell
+# Demo operator convenience: load the application key and caller token into
+# THIS terminal session. Nothing is printed or stored as a plaintext env file.
+.\scripts\Import-GatewayConsumerEnv.ps1 -Scenario shared-service -UseAzd
+
 python -m samples.consume_gateway --endpoint "https://<apim>.azure-api.net/ai" `
   --kind hosted-agent --agent-name hosted --prompt "Reply exactly PRIVATE_AGENT_OK"
 python -m samples.consume_gateway --endpoint "https://<apim>.azure-api.net/ai" `
@@ -434,6 +438,28 @@ python -m samples.consume_gateway --endpoint "https://<apim>.azure-api.net/ai" `
 python -m samples.consume_gateway --endpoint "https://<apim>.azure-api.net/ai" `
   --kind hosted-agent-responses --prompt "/mcp-read gateway-check.txt"
 ```
+
+You can use `--endpoint $env:GATEWAY_ENDPOINT` instead of typing the URL.
+The loader supports `dedicated-application` and `user-obo`; C reads the
+selected encrypted user cache and never falls back to operator credentials.
+It requires operator AKS access to obtain the application's key, not the
+administrative master key. Production consumers should receive issued keys
+through their approved secret-delivery mechanism instead of AKS access.
+Variables are process-local; run the helper again when the Entra token expires.
+If loading fails, stale consumer variables are cleared to avoid mixing profiles.
+
+```powershell
+# C: loads its consumer key and actual cached user assertion, not an operator token.
+.\scripts\Import-GatewayConsumerEnv.ps1 -Scenario user-obo
+python -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT `
+  --kind hosted-agent --agent-name hosted --prompt "Reply exactly HELLO"
+
+# Optional cleanup when finished in this terminal.
+Remove-Item Env:LITELLM_VIRTUAL_KEY,Env:GATEWAY_ACCESS_TOKEN,Env:GATEWAY_ENDPOINT
+```
+
+After loading C, the endpoint and user assertion are already selected.
+The explicit cache arguments below are an alternative to the environment loader.
 
 Use the C suffix/key plus `--identity` and `--user-token-cache` for delegated
 consumer calls. The hosted agent still uses its own runtime identity for its

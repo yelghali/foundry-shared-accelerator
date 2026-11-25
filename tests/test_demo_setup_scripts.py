@@ -103,3 +103,47 @@ Write-Output 'Failure cleanup verified'
                        .replace("__SUB__", SUBSCRIPTION).replace("__PROJECT__", PROJECT))
     assert result.returncode == 0, result.stderr
     assert "Failure cleanup verified" in result.stdout
+
+
+def test_consumer_loader_sets_current_session_without_printing_credentials():
+    result = shell(r"""
+$beforePath = $env:PATH
+$env:KUBECONFIG = 'original-kubeconfig'
+function fakepython {
+    $global:LASTEXITCODE = 0
+    '{"key":"sk-test-consumer-not-real","token":"test-entra-not-real","endpoint":"https://demo.azure-api.net/ai"}'
+}
+& .\scripts\Import-GatewayConsumerEnv.ps1 -PythonExecutable fakepython -UseAzd
+if ($env:LITELLM_VIRTUAL_KEY -ne 'sk-test-consumer-not-real') { throw 'Application key not loaded' }
+if ($env:GATEWAY_ACCESS_TOKEN -ne 'test-entra-not-real') { throw 'Caller token not loaded' }
+if ($env:GATEWAY_ENDPOINT -ne 'https://demo.azure-api.net/ai') { throw 'Endpoint not loaded' }
+if ($env:PATH -ne $beforePath -or $env:KUBECONFIG -ne 'original-kubeconfig') { throw 'Operator environment leaked' }
+Write-Output 'Current-session credentials verified'
+""")
+    assert result.returncode == 0, result.stderr
+    assert "Current-session credentials verified" in result.stdout
+    assert "sk-test-consumer-not-real" not in result.stdout
+    assert "test-entra-not-real" not in result.stdout
+
+
+def test_failed_consumer_loader_clears_stale_profile_and_restores_operator_environment():
+    result = shell(r"""
+$beforePath = $env:PATH
+$env:KUBECONFIG = 'original-kubeconfig'
+$env:LITELLM_VIRTUAL_KEY = 'stale-key'
+$env:GATEWAY_ACCESS_TOKEN = 'stale-token'
+$env:GATEWAY_ENDPOINT = 'https://stale.example/ai'
+function fakepython { $global:LASTEXITCODE = 1 }
+try {
+    & .\scripts\Import-GatewayConsumerEnv.ps1 -Scenario user-obo -PythonExecutable fakepython
+    throw 'Expected failure'
+}
+catch {
+    if ($_.Exception.Message -notlike '*environment was not loaded*') { throw }
+}
+if ($env:LITELLM_VIRTUAL_KEY -or $env:GATEWAY_ACCESS_TOKEN -or $env:GATEWAY_ENDPOINT) { throw 'Stale credentials retained' }
+if ($env:PATH -ne $beforePath -or $env:KUBECONFIG -ne 'original-kubeconfig') { throw 'Operator environment leaked' }
+Write-Output 'Failed profile cannot fall back to stale credentials'
+""")
+    assert result.returncode == 0, result.stderr
+    assert "cannot fall back" in result.stdout
