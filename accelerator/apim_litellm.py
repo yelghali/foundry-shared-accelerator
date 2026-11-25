@@ -362,8 +362,10 @@ def verify(
     def rpc(method: str, params: dict[str, Any], agent: str = "echo") -> dict[str, Any]:
         nonlocal request_id
         request_id += 1
+        url = base + "/a2a/" + agent
+        print(f"POST {url} [A2A {method}]", file=sys.stderr, flush=True)
         response = requests.post(
-            base + "/a2a/" + agent, headers=rpc_headers,
+            url, headers=rpc_headers,
             json={"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}, timeout=240,
         )
         return parse_rpc_response(response, request_id)
@@ -414,8 +416,10 @@ def verify(
             ("hosted-agent-responses", "/mcp-read gateway-check.txt", "MCP_WORKLOAD_IDENTITY_OK"),
             ("hosted-agent-responses", "/network-check", "INTERNET_EGRESS_BLOCKED"),
         ]:
+            url = base + "/v1/responses"
+            print(f"POST {url} [Responses: {alias}]", file=sys.stderr, flush=True)
             response = requests.post(
-                base + "/v1/responses", headers=headers, json={"model": alias, "input": prompt}, timeout=240,
+                url, headers=headers, json={"model": alias, "input": prompt}, timeout=240,
             )
             response.raise_for_status()
             payload = response.json()

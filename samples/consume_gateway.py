@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import sys
 import uuid
 from urllib.parse import urlsplit
 
@@ -45,7 +46,9 @@ def main() -> None:
     base = args.endpoint.rstrip("/")
     headers = {"Authorization": "Bearer " + token, "x-litellm-api-key": "Bearer " + key}
     if args.kind == "mcp":
-        client = MCPClient(base + "/blob/mcp", token)
+        url = base + "/blob/mcp"
+        print(f"POST {url} [MCP initialize / tools/list]", file=sys.stderr, flush=True)
+        client = MCPClient(url, token)
         client.headers["x-litellm-api-key"] = "Bearer " + key
         try:
             client.initialize()
@@ -54,8 +57,10 @@ def main() -> None:
             client.session.close()
         return
     if args.kind == "model":
+        url = base + "/v1/chat/completions"
+        print(f"POST {url} [model: enterprise-chat]", file=sys.stderr, flush=True)
         response = requests.post(
-            base + "/v1/chat/completions", headers=headers,
+            url, headers=headers,
             json={"model": "enterprise-chat", "messages": [{"role": "user", "content": args.prompt}]},
             timeout=180,
         )
@@ -63,16 +68,20 @@ def main() -> None:
         print(response.json()["choices"][0]["message"]["content"])
         return
     if args.kind in {"hosted-agent-responses", "prompt-agent-responses"}:
+        url = base + "/v1/responses"
+        print(f"POST {url} [Responses: {args.kind}]", file=sys.stderr, flush=True)
         response = requests.post(
-            base + "/v1/responses", headers=headers,
+            url, headers=headers,
             json={"model": args.kind, "input": args.prompt}, timeout=240,
         )
         response.raise_for_status()
         print(json.dumps(response.json(), indent=2))
         return
     agent = (args.agent_name or "echo") if args.kind == "hosted-agent" else "declarative"
+    url = base + "/a2a/" + agent
+    print(f"POST {url} [A2A SendMessage]", file=sys.stderr, flush=True)
     response = requests.post(
-        base + "/a2a/" + agent, headers={**headers, "A2A-Version": "1.0"},
+        url, headers={**headers, "A2A-Version": "1.0"},
         json={"jsonrpc": "2.0", "id": 1, "method": "SendMessage", "params": {
             "message": {"messageId": str(uuid.uuid4()), "role": "ROLE_USER", "parts": [{"text": args.prompt}]},
             "configuration": {"returnImmediately": False},

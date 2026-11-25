@@ -447,6 +447,10 @@ administrative master key. Production consumers should receive issued keys
 through their approved secret-delivery mechanism instead of AKS access.
 Variables are process-local; run the helper again when the Entra token expires.
 If loading fails, stale consumer variables are cleared to avoid mixing profiles.
+Consumer calls and live agent checks print the HTTP method, actual gateway URL
+and protocol/alias to stderr, without credentials or request bodies. JSON
+results remain on stdout. These are client-side URLs (APIM or a direct LiteLLM
+endpoint you supply), not fabricated traces of internal Foundry hops.
 
 ```powershell
 # C: loads its consumer key and actual cached user assertion, not an operator token.
