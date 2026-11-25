@@ -8,7 +8,7 @@
     {"id":"apim","type":"rectangle","x":340,"y":130,"width":240,"height":100,"strokeColor":"#0078D4","backgroundColor":"#CFE4FA","fillStyle":"solid","strokeWidth":2,"boundElements":[{"type":"text","id":"apim-text"}]},
     {"id":"apim-text","type":"text","x":355,"y":145,"width":210,"height":70,"text":"APIM Standard v2\nPublic HTTPS + JWT checks","fontSize":14,"fontFamily":2,"strokeColor":"#000000","containerId":"apim","textAlign":"center","verticalAlign":"middle"},
     {"id":"gateway","type":"rectangle","x":680,"y":130,"width":340,"height":100,"strokeColor":"#107C10","backgroundColor":"#DFF6DD","fillStyle":"solid","strokeWidth":2,"boundElements":[{"type":"text","id":"gateway-text"}]},
-    {"id":"gateway-text","type":"text","x":695,"y":145,"width":310,"height":70,"text":"LiteLLM OSS on AKS\nNative keys; private backend aliases","fontSize":14,"fontFamily":2,"strokeColor":"#000000","containerId":"gateway","textAlign":"center","verticalAlign":"middle"},
+    {"id":"gateway-text","type":"text","x":695,"y":145,"width":310,"height":70,"text":"LiteLLM OSS on AKS\nC agent OBO: custom Python here","fontSize":14,"fontFamily":2,"strokeColor":"#000000","containerId":"gateway","textAlign":"center","verticalAlign":"middle"},
     {"id":"identity","type":"rectangle","x":1100,"y":130,"width":300,"height":100,"strokeColor":"#5C2D91","backgroundColor":"#E8DAEF","fillStyle":"solid","strokeWidth":2,"boundElements":[{"type":"text","id":"identity-text"}]},
     {"id":"identity-text","type":"text","x":1115,"y":145,"width":270,"height":70,"text":"Entra + private Key Vault\nWI / OBO; C secret via CSI","fontSize":14,"fontFamily":2,"strokeColor":"#000000","containerId":"identity","textAlign":"center","verticalAlign":"middle"},
     {"id":"consumer-apim","type":"arrow","x":280,"y":180,"width":60,"height":0,"points":[[0,0],[60,0]],"strokeColor":"#495057","strokeWidth":2,"endArrowhead":"arrow"},
@@ -44,9 +44,11 @@
     {"id":"mcp-blob","type":"arrow","x":1020,"y":725,"width":70,"height":0,"points":[[0,0],[70,0]],"strokeColor":"#495057","strokeWidth":2,"endArrowhead":"arrow"},
     {"id":"gateway-mcp","type":"arrow","x":1020,"y":210,"width":375,"height":460,"points":[[0,0],[355,0],[355,425],[-20,425],[-20,460]],"strokeColor":"#495057","strokeWidth":2,"endArrowhead":"arrow"},
     {"id":"prompt-note","type":"text","x":60,"y":795,"width":1320,"height":35,"text":"Published prompt version is model-only. Its experimental native private-MCP binding is not enabled or certified.","fontSize":14,"fontFamily":2,"strokeColor":"#000000"},
-    {"id":"auth-note","type":"text","x":40,"y":865,"width":1360,"height":40,"text":"A: shared WI. B: dedicated WI/key database. C: user OBO for agents; direct models still use gateway WI.","fontSize":16,"fontFamily":2,"strokeColor":"#000000"},
-    {"id":"downstream-note","type":"text","x":40,"y":915,"width":1360,"height":40,"text":"Hosted internal model/MCP calls use its runtime identity, not automatic user OBO. Blob access uses FastMCP WI.","fontSize":16,"fontFamily":2,"strokeColor":"#000000"},
-    {"id":"limits-note","type":"text","x":40,"y":965,"width":1360,"height":40,"text":"Measured private protocols/MCP and fixed public HTTPS denial. Trusted private MCP TLS remains production hardening.","fontSize":16,"fontFamily":2,"strokeColor":"#000000"}
+    {"id":"auth-note","type":"text","x":40,"y":850,"width":1360,"height":40,"text":"A: shared LiteLLM managed identity. B: separate LiteLLM managed identity. C: delegated user for MCP and agents.","fontSize":16,"fontFamily":2,"strokeColor":"#000000"},
+    {"id":"mcp-auth-note","type":"text","x":40,"y":885,"width":1360,"height":35,"text":"A/B MCP: custom sidecar in LiteLLM pod. C MCP: native LiteLLM user OBO; no MCP auth sidecar.","fontSize":14,"fontFamily":2,"strokeColor":"#000000"},
+    {"id":"agent-auth-note","type":"text","x":40,"y":920,"width":1360,"height":35,"text":"C agent OBO: our Python inside LiteLLM, not native agent OBO or a sidecar. Agent calls go directly to Foundry.","fontSize":14,"fontFamily":2,"strokeColor":"#000000"},
+    {"id":"downstream-note","type":"text","x":40,"y":955,"width":1360,"height":35,"text":"Hosted downstream: runtime identity. Blob: FastMCP identity. Direct model calls: LiteLLM identity.","fontSize":14,"fontFamily":2,"strokeColor":"#000000"},
+    {"id":"limits-note","type":"text","x":40,"y":990,"width":1360,"height":35,"text":"2026-11-25: 12 exact-output calls + full A/B/C acceptance passed. Private MCP TLS and cross-user task isolation remain limitations.","fontSize":14,"fontFamily":2,"strokeColor":"#000000"}
   ],
   "appState":{"viewBackgroundColor":"#ffffff","gridSize":20},"files":{}
 }

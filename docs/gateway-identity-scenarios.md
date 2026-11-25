@@ -119,6 +119,49 @@ Expected completed Task artifact: **`HOSTED_A2A_OK`**. The private profile uses
 `--agent-name hosted`; omitting it selects the legacy deterministic Echo alias,
 which is not registered in the current private profile.
 
+### Live recheck: actual results on 2026-11-25
+
+The existing credential loader and consumer were run against **Azure APIM**,
+separately for A, B and C. All **12/12** calls returned the exact requested
+marker in assistant output (Responses) or completed Task artifacts (A2A).
+User-message history and echoed input were not accepted as proof.
+
+| Actual returned assistant/artifact text | A | B | C |
+|---|---|---|---|
+| Prompt Responses | `A_PROMPT_RESPONSES_OK` | `B_PROMPT_RESPONSES_OK` | `C_PROMPT_RESPONSES_OK` |
+| Hosted Responses | `A_HOSTED_RESPONSES_OK` | `B_HOSTED_RESPONSES_OK` | `C_HOSTED_RESPONSES_OK` |
+| Prompt A2A | `A_PROMPT_A2A_OK` | `B_PROMPT_A2A_OK` | `C_PROMPT_A2A_OK` |
+| Hosted A2A | `A_HOSTED_A2A_OK` | `B_HOSTED_A2A_OK` | `C_HOSTED_A2A_OK` |
+
+The manual commands can use these scenario-prefixed markers or the shorter
+markers above; compare against the exact text you requested. Responses also
+returned the expected server references: `gateway-declarative` version `1`
+and `gateway-hosted-dual` version `5`. A2A returned actual completed Task,
+context and artifact IDs, **not an `agent_reference`**.
+
+Full `accelerator.apim_litellm verify --private-demo --permissions --declarative`
+acceptance was then rerun for all three profiles and passed. This separately
+checked MCP Blob reads, MCP caller identity (A/B expected managed principals;
+C the permitted delegated user), hosted A2A SendMessage/GetTask artifact
+equality, both agents over Responses/A2A, hosted private MCP access/public
+HTTPS denial, and key/backend-override denials. A/B foreign-profile keys were
+also rejected. Cross-user task isolation is still not certified.
+
+The live AKS pod inspection confirmed:
+
+| Profile | Actual containers in the LiteLLM pod | Workload identity |
+|---|---|---|
+| A | `litellm`, `identity-adapter` | Matches A's Terraform managed identity |
+| B | `litellm`, `identity-adapter` | Matches B's distinct Terraform managed identity |
+| C | `litellm` only | Matches C's Terraform managed identity; delegated requests still use user OBO |
+
+Local run receipts (not committed) are
+`.local/apim-litellm/agent-manual-verification-20261125.json` and
+`.local/apim-litellm/<scenario>/acceptance-20261125-identity-clarification.json`.
+No mocked response or LLM-generated self-identification was used for these
+checks. Successful A2A output does not independently attest a hosting resource;
+the protocol evidence and that limitation remain distinct.
+
 ### 3. Identify the actual Foundry agent
 
 The deployed private project is **`fsapriv1125` / `private-gateway-demo`**.
@@ -328,22 +371,71 @@ agents directly and does not replace the consumer token with its own identity.
 
 ### MCP and agent authentication: native OBO versus workload identity
 
+**"LiteLLM identity" means the Azure managed identity assigned to the
+LiteLLM pod on AKS. It does not mean APIM's identity or the consumer app.**
+APIM is the front door; LiteLLM is the AI routing/authentication service behind it.
+
+Separate **who authenticates** from **where the code runs**:
+
+* **Workload identity** is how an AKS pod obtains tokens as an Azure managed
+  identity without a client secret. It is not a container or sidecar.
+* **Sidecar / adapter** is a separate container in the same pod. A/B have a
+  custom MCP-only `identity-adapter` container that obtains service tokens
+  and forwards MCP calls.
+* **In-process Python / hook** is our custom Python running inside the
+  LiteLLM container and Python process. It is not another container/service.
+  Agent OBO is custom integration, not a native LiteLLM agent-OBO feature.
+* **User OBO** means exchanging the signed-in user's incoming token for a
+  target-scoped delegated token. The backend receives the delegated user
+  identity, rather than only the LiteLLM managed identity.
+
 **Yes, user OBO works over A2A in this demo, for both hosted and prompt
 agents.** It is an HTTPS authentication exchange around A2A; the A2A message
 does not need to contain a user token or an `agent_reference`.
 
-| Hop / implementation | A: shared service | B: dedicated application | C: user OBO |
+#### Which identity reaches the backend?
+
+| Backend call | A: shared service | B: dedicated application | C: user OBO |
 |---|---|---|---|
-| LiteLLM runs on AKS with workload identity | Yes: shared gateway managed identity | Yes: separate app-alpha gateway managed identity | Yes, but it does not replace the user for the delegated calls below |
-| LiteLLM -> MCP | Shared gateway workload identity, via MCP-only token adapter | Dedicated gateway workload identity, via MCP-only token adapter | **User OBO: native LiteLLM MCP Entra integration** |
-| Uses the linked LiteLLM **MCP OBO Auth** feature | No | No | **Yes:** `auth_type: oauth2_token_exchange`, `token_exchange_profile: entra_obo` |
-| LiteLLM -> hosted agent, **A2A** | Native LiteLLM workload federation | Native LiteLLM workload federation with B's identity | **User OBO: custom in-process agent authentication hook** |
-| LiteLLM -> prompt agent, **A2A** | Native LiteLLM workload federation | Native LiteLLM workload federation with B's identity | **User OBO: same custom agent hook** |
-| LiteLLM -> hosted/prompt agent, **Responses** | Workload identity through custom fixed-endpoint auth hook | B's workload identity through that hook | **User OBO through that custom hook** |
+| LiteLLM -> MCP | Shared LiteLLM managed identity | Separate app-alpha LiteLLM managed identity | **Signed-in user, through OBO** |
+| LiteLLM -> hosted agent, **A2A** | Shared LiteLLM managed identity | Separate app-alpha LiteLLM managed identity | **Signed-in user, through OBO** |
+| LiteLLM -> prompt agent, **A2A** | Shared LiteLLM managed identity | Separate app-alpha LiteLLM managed identity | **Signed-in user, through OBO** |
+| LiteLLM -> either agent, **Responses** | Shared LiteLLM managed identity | Separate app-alpha LiteLLM managed identity | **Signed-in user, through OBO** |
 | Hosted agent -> private model/MCP | Hosted runtime identity | Hosted runtime identity | Hosted runtime identity; **not delegated user OBO** |
-| Published prompt agent -> MCP | Not enabled | Not enabled | Not enabled; native private prompt-MCP binding has not passed validation |
-| OBO confidential-client credential | None | None | Gateway app-registration secret in private Key Vault, mounted with AKS workload identity |
-| If delegated authentication fails | Not applicable | Not applicable | Explicit failure; no service-identity fallback |
+| FastMCP -> Blob | FastMCP pod's own managed identity | FastMCP pod's own managed identity | FastMCP pod's own managed identity; not the user's identity |
+
+#### Where is authentication implemented?
+
+| Call / component | A and B | C |
+|---|---|---|
+| MCP service-token authentication | **Custom sidecar container** in the LiteLLM pod; same pod workload identity | Not used; **no adapter sidecar** in C's LiteLLM pod |
+| MCP user OBO | Not used | **Native LiteLLM MCP OBO feature**, inside LiteLLM; YAML selects `oauth2_token_exchange` + `entra_obo` |
+| Agent A2A authentication | **Native LiteLLM** workload federation, inside LiteLLM | **Our custom Python inside the LiteLLM process** validates/exchanges the user token and supplies the backend bearer |
+| Agent Responses authentication | **Our custom Python inside LiteLLM** obtains a workload-identity token for fixed agent endpoints | **Our custom Python inside LiteLLM** obtains a delegated user token for those endpoints |
+| A2A `GetTask` method compatibility | **Our custom Python inside LiteLLM**, not a sidecar | Same compatibility patch |
+| OBO confidential-app credential | Not required | App-registration secret in private Key Vault, delivered with pod workload identity/CSI; not an agent-auth sidecar |
+
+All three LiteLLM pods use AKS workload identity for their service access.
+That does not turn C's delegated MCP/agent calls into managed-identity calls.
+Published prompt-agent MCP binding is **not enabled**; it failed the earlier
+private native-MCP trial. C never falls back to service identity on OBO failure.
+The custom agent code patches pinned LiteLLM internals and requires regression
+testing on upgrades; it is not represented as vendor-supported native agent OBO.
+C's MCP token exchange is native LiteLLM; a small custom startup helper only
+resolves the CSI-delivered secret into the pinned release's OAuth fields.
+
+```text
+A/B LiteLLM pod                         C LiteLLM pod
++ LiteLLM container                     + LiteLLM container
+  - native A2A workload auth              - native MCP user OBO
+  - custom Responses workload auth        - custom A2A/Responses user OBO
+  - custom GetTask compatibility          - custom GetTask compatibility
++ MCP auth sidecar container             (no MCP auth sidecar container)
+  - MCP only; pod's managed identity
+
+Agent traffic: LiteLLM -> Foundry directly in every profile.
+The A/B MCP sidecar never handles agent requests.
+```
 
 Reference: [LiteLLM MCP OBO Auth: Microsoft Entra ID](https://docs.litellm.ai/docs/mcp_obo_auth#microsoft-entra-id-azure-ad).
 **That feature covers MCP, not A2A/agent OBO.** The demo's native MCP
@@ -418,7 +510,7 @@ for Entra authentication/RBAC.
 | Namespace | `gateway` | `gateway-app-alpha` | `gateway-user-obo` |
 | OBO credential | Not required | Not required | App-registration secret in private Key Vault, mounted using workload identity |
 | Failure behavior | Explicit denial | Explicit denial | Explicit denial; **never falls back to service identity** |
-| Live Azure status, 2026-11-24 | Models, MCP, hosted/declarative A2A and key denials passed | Same checks passed with a different verified backend identity; foreign keys rejected | Passed with a real consented user: models, delegated MCP/identity, model-plus-MCP, hosted/declarative A2A, saved tasks and key denials |
+| Live Azure status, 2026-11-25 | All four exact-output agent calls and full private acceptance passed | Same checks passed with a different verified backend identity; foreign keys rejected | All four agent calls with actual user OBO passed; delegated MCP identity, saved tasks and key denials also passed |
 
 [![APIM and LiteLLM identity scenarios](diagrams/gateway-identity-scenarios.svg)](diagrams/gateway-identity-scenarios.svg)
 

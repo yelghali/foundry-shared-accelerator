@@ -17,7 +17,7 @@
   <text x="35" y="42" class="title">Standalone demo: APIM + LiteLLM OSS AI gateway</text>
   <text x="35" y="70" class="body">Three separately deployed profiles. Consumer virtual keys and downstream Entra identities are different credentials.</text>
 
-  <rect x="600" y="100" width="805" height="365" rx="14" fill="none" stroke="#0078D4" stroke-width="2"/>
+  <rect x="600" y="100" width="805" height="385" rx="14" fill="none" stroke="#0078D4" stroke-width="2"/>
   <text x="620" y="130" class="heading">AKS: isolated namespaces and key stores per profile</text>
   <rect x="35" y="160" width="225" height="105" rx="12" fill="#CFE4FA" stroke="#0078D4" stroke-width="2"/>
   <text x="55" y="190" class="heading">Consumer app / user</text>
@@ -31,9 +31,9 @@
   <path class="line" d="M545 210H630"/>
 
   <rect x="630" y="160" width="310" height="105" rx="12" fill="#DFF6DD" stroke="#107C10" stroke-width="2"/>
-  <text x="650" y="190" class="heading">LiteLLM OSS</text>
-  <text x="650" y="219" class="body">Native virtual-key authorization</text>
-  <text x="650" y="244" class="body">Model, MCP and A2A routing</text>
+  <text x="650" y="190" class="heading">LiteLLM container</text>
+  <text x="650" y="219" class="body">Native routing + Python extensions</text>
+  <text x="650" y="244" class="body">C agent OBO code runs HERE</text>
   <rect x="1020" y="160" width="350" height="105" rx="12" fill="#F3F2F1" stroke="#495057" stroke-width="2"/>
   <text x="1040" y="190" class="heading">PostgreSQL + protected Secrets</text>
   <text x="1040" y="219" class="body">Persistent virtual-key state</text>
@@ -41,9 +41,10 @@
   <path class="line" d="M940 195H1020"/>
 
   <rect x="630" y="330" width="310" height="100" rx="12" fill="#E8DAEF" stroke="#5C2D91" stroke-width="2"/>
-  <text x="650" y="360" class="heading">Service-identity MCP adapter</text>
-  <text x="650" y="388" class="body">A/B: MCP workload identity</text>
-  <text x="650" y="413" class="body">No Foundry agent traffic</text>
+  <text x="650" y="360" class="heading">MCP auth sidecar (A/B)</text>
+  <text x="650" y="388" class="body">Same LiteLLM pod; managed identity</text>
+  <text x="650" y="413" class="body">No agent traffic; C has no sidecar</text>
+  <text x="630" y="458" class="small">C: MCP OBO is native; agent OBO is our Python in LiteLLM, not another container.</text>
   <rect x="1020" y="330" width="350" height="100" rx="12" fill="#DFF6DD" stroke="#107C10" stroke-width="2"/>
   <text x="1040" y="360" class="heading">FastMCP on AKS</text>
   <text x="1040" y="388" class="body">Checks service or delegated identity</text>
@@ -56,7 +57,7 @@
   <text x="1005" y="310" class="small">C: native MCP OBO</text>
 
   <rect x="35" y="345" width="225" height="100" rx="12" fill="#E8DAEF" stroke="#5C2D91" stroke-width="2"/>
-  <text x="55" y="375" class="heading">Private Azure Key Vault</text>
+  <text x="55" y="375" class="heading">Private Key Vault</text>
   <text x="55" y="403" class="body">C: OBO app credential</text>
   <text x="55" y="428" class="body">WI + CSI secret delivery</text>
   <path class="line private" d="M260 380H580V230H630"/>
@@ -66,15 +67,15 @@
   <text x="620" y="565" class="heading">Approved Azure Foundry backends</text>
   <rect x="630" y="590" width="220" height="85" rx="10" fill="#E8DAEF" stroke="#5C2D91" stroke-width="2"/>
   <text x="650" y="621" class="heading">Shared models</text>
-  <text x="650" y="651" class="body">A/B/C: workload identity</text>
+  <text x="650" y="651" class="body">LiteLLM managed identity</text>
   <rect x="890" y="590" width="220" height="85" rx="10" fill="#E8DAEF" stroke="#5C2D91" stroke-width="2"/>
   <text x="910" y="621" class="heading">Hosted agent</text>
-  <text x="910" y="651" class="body">Native A2A 1.0</text>
+  <text x="910" y="651" class="body">A2A + Responses</text>
   <rect x="1150" y="590" width="220" height="85" rx="10" fill="#E8DAEF" stroke="#5C2D91" stroke-width="2"/>
-  <text x="1170" y="621" class="heading">Declarative agent</text>
-  <text x="1170" y="651" class="body">Published A2A endpoint</text>
+  <text x="1170" y="621" class="heading">Prompt agent</text>
+  <text x="1170" y="651" class="body">A2A + Responses</text>
   <path class="line" d="M650 265H610V500H740V590"/>
-  <text x="620" y="520" class="small">Model inference: gateway workload identity</text>
+  <text x="620" y="520" class="small">Models: LiteLLM managed identity</text>
   <path class="line" d="M900 265H965V480H1000V590"/>
   <path class="line" d="M1000 480H1260V590"/>
   <text x="940" y="506" class="small">Direct Foundry HTTPS | A/B: WI | C: OBO</text>
@@ -89,15 +90,15 @@
   <rect x="35" y="755" width="1370" height="205" rx="12" fill="none" stroke="#495057" stroke-width="2"/>
   <text x="55" y="785" class="heading">Profile summary and measured status</text>
   <text x="55" y="823" class="body">A  shared-service</text>
-  <text x="360" y="823" class="body">Shared gateway WI for models, agents and MCP</text>
+  <text x="360" y="823" class="body">Shared LiteLLM managed identity for models, agents and MCP</text>
   <text x="1110" y="823" class="body">Azure tests passed</text>
   <text x="55" y="861" class="body">B  dedicated-application</text>
-  <text x="360" y="861" class="body">Dedicated gateway WI + isolated key database</text>
+  <text x="360" y="861" class="body">Separate app-alpha LiteLLM managed identity + key database</text>
   <text x="1110" y="861" class="body">Azure tests passed</text>
   <rect x="45" y="880" width="1350" height="65" rx="7" fill="#DFF6DD" stroke="#107C10"/>
   <text x="55" y="906" class="body">C  user-obo</text>
-  <text x="360" y="906" class="body">Models: WI | MCP: native OBO | Agents: custom OBO</text>
+  <text x="360" y="906" class="body">MCP: native user OBO | Agents: custom Python user OBO</text>
   <text x="1110" y="906" class="body">Delegated calls passed</text>
-  <text x="55" y="932" class="small">Real consented-user MCP and hosted/declarative A2A verified. Cross-user task isolation remains unverified.</text>
-  <text x="35" y="985" class="small">WI = AKS Workload Identity. User identity at MCP ingress does not automatically propagate to Blob or an agent's downstream tools.</text>
+  <text x="55" y="932" class="small">2026-11-25: 12 exact-output calls verified. Cross-user task isolation remains unverified.</text>
+  <text x="35" y="985" class="small">Workload identity = pod token mechanism, not a sidecar. Hosted downstream calls use its runtime identity; Blob uses FastMCP identity.</text>
 </svg>
