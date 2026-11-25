@@ -24,6 +24,17 @@ or [deployment and tests](#deploy-and-test-this-standalone-demo).
 For copy/paste commands, expected outputs and protocol evidence, use the
 [hands-on lab: prompt/hosted agents over Responses and A2A](../../docs/gateway-identity-scenarios.md#hands-on-lab-test-prompt-and-hosted-agents-through-both-apis).
 
+**New to the components?** Start with the
+[nine-path TL;DR code/config map](../../docs/gateway-identity-scenarios.md#code-map-models-mcp-and-agents-in-a-b-and-c).
+It links each A/B/C model, MCP and agent path to exact live-tested GitHub
+source, then to a manual lesson:
+[A: shared LiteLLM identity](../../docs/gateway-identity-scenarios.md#tutorial-a-shared-litellm-identity),
+[B: dedicated LiteLLM identity](../../docs/gateway-identity-scenarios.md#tutorial-b-dedicated-litellm-identity),
+[C: signed-in user OBO](../../docs/gateway-identity-scenarios.md#tutorial-c-signed-in-user-through-obo).
+Each lesson has a small flow diagram, setup command, model/MCP calls, four
+agent calls and a separate identity-verification step. Workload identity,
+an MCP sidecar and custom Python inside LiteLLM are explicitly different.
+
 ## What this demo shows
 
 ### Current private profile: deployed and tested on 2026-11-25

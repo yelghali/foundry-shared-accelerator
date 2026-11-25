@@ -5,6 +5,19 @@ This runbook deploys a standalone demo; it is **not integrated into Day 0
 platform setup or Day 1/team onboarding**. Existing Foundry/model resources
 are explicit inputs, not automatically onboarded team projects.
 
+## Start here: learn, run, then verify
+
+| Your question | Read next |
+|---|---|
+| Which component/identity is used, and where is its code? | [TL;DR: nine-path code map](#code-map-models-mcp-and-agents-in-a-b-and-c) |
+| The demo is already deployed; I want to call it myself | [A: shared identity](#tutorial-a-shared-litellm-identity), then [B: dedicated identity](#tutorial-b-dedicated-litellm-identity), then [C: user OBO](#tutorial-c-signed-in-user-through-obo), one at a time |
+| I need to build my own private deployment first | [Private deployment prerequisites and sequence](../scenarios/apim-litellm/README.md#private-profile-upgrade-of-the-standalone-gateway); this is not an empty-subscription one-liner |
+| How were the expected outputs and identities checked? | [Actual live results](#live-recheck-actual-results-on-2026-11-25) and [identity/denial acceptance](#tutorial-verification-beyond-a-successful-answer) |
+
+Two reading levels: the tutorial below is for **using an existing deployment**.
+The deployment/consent sections are for its **operator**. Loading consumer
+credentials does not deploy infrastructure, configure OBO, or call an agent.
+
 ## Current private profile, 2026-11-25
 
 The demo-owned account `fsapriv1125`, project `private-gateway-demo`, has public
@@ -51,9 +64,18 @@ Your terminal -> public APIM -> LiteLLM on AKS -> private Foundry
 
 ### 1. Load consumer credentials
 
+Use the demo's prepared Python environment, from the repository root:
+
 ```powershell
-.\scripts\Import-GatewayConsumerEnv.ps1 -Scenario shared-service -UseAzd
+$py = ".\.local\scenario-venv\Scripts\python.exe"
 ```
+
+If that interpreter does not exist, first complete the linked deployment
+prerequisites, or set `$py` to your own environment with this repository's
+dependencies installed. Do not copy deployment-specific resource names into
+a different subscription.
+
+Choose **one** profile below. Its tutorial starts by loading its credentials.
 
 The helper loads `LITELLM_VIRTUAL_KEY`, `GATEWAY_ACCESS_TOKEN` and
 `GATEWAY_ENDPOINT` into this process only. It reads the **application** virtual
@@ -62,15 +84,15 @@ This operator convenience requires AKS access and the intended Azure login.
 Do not launch it in a separate `pwsh -File` process: that child's environment
 will not update your existing terminal.
 
-| Scenario to exercise | Credential-loading command |
-|---|---|
-| A: shared service identity | `.\scripts\Import-GatewayConsumerEnv.ps1 -Scenario shared-service -UseAzd` |
-| B: dedicated application identity | `.\scripts\Import-GatewayConsumerEnv.ps1 -Scenario dedicated-application -UseAzd` |
-| C: actual user OBO | `.\scripts\Import-GatewayConsumerEnv.ps1 -Scenario user-obo` |
+| Scenario to exercise | Credential-loading command | Tutorial |
+|---|---|---|
+| A: shared LiteLLM identity | `.\scripts\Import-GatewayConsumerEnv.ps1 -Scenario shared-service -UseAzd` | [Run A](#tutorial-a-shared-litellm-identity) |
+| B: dedicated LiteLLM identity | `.\scripts\Import-GatewayConsumerEnv.ps1 -Scenario dedicated-application -UseAzd` | [Run B](#tutorial-b-dedicated-litellm-identity) |
+| C: actual user OBO | `.\scripts\Import-GatewayConsumerEnv.ps1 -Scenario user-obo` | [Run C](#tutorial-c-signed-in-user-through-obo) |
 
 C uses the selected OS-encrypted user cache created by the consent/login steps.
 It never falls back to an operator token. After changing scenario, run the same
-four commands below: the helper selects that profile's APIM base path and key.
+consumer commands below: the helper selects that profile's APIM base path and key.
 Rerun the loader when the Entra token expires.
 
 **The loader is setup, not an inference test.** It reads the consumer virtual
@@ -81,43 +103,177 @@ does not run both scenarios. Execute a consumer command below after loading.
 
 ### 2. Run all four combinations
 
-**Prompt agent - Responses API**
+Each lesson contains **six independent calls**: a direct model, MCP discovery,
+and four agent combinations. Execute commands one by one and inspect each
+response. There is no automatic scenario runner.
 
-```powershell
-python -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT `
-  --kind prompt-agent-responses --prompt "Reply exactly PROMPT_RESPONSES_OK"
+#### Tutorial A: shared LiteLLM identity
+
+**Learning goal:** distinguish caller admission from backend service identity.
+Your caller token and consumer key admit the request. The private model/MCP/
+agent sees the shared LiteLLM managed identity, not your personal identity.
+
+```text
+Caller -> APIM /ai -> LiteLLM pod A (shared managed identity)
+                       |-> model directly
+                       |-> MCP-only sidecar -> FastMCP
+                       `-> prompt/hosted agent directly (A2A or Responses)
 ```
 
-Expected assistant output: **`PROMPT_RESPONSES_OK`**, with status `completed`.
-
-**Hosted agent - Responses API**
-
-```powershell
-python -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT `
-  --kind hosted-agent-responses --prompt "Reply exactly HOSTED_RESPONSES_OK"
-```
-
-Expected assistant output: **`HOSTED_RESPONSES_OK`**, with status `completed`.
-
-**Prompt agent - A2A**
+Read the [A model configuration][src-model], [MCP sidecar][src-adapter] and
+[native agent A2A configuration][src-a2a-config] alongside the calls:
 
 ```powershell
-python -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT `
-  --kind declarative-agent --prompt "Reply exactly PROMPT_A2A_OK"
+$py = ".\.local\scenario-venv\Scripts\python.exe"
+.\scripts\Import-GatewayConsumerEnv.ps1 -Scenario shared-service -UseAzd
+$env:GATEWAY_ENDPOINT   # Expected suffix: /ai
+
+# Model: expect A_MODEL_OK in the assistant answer
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind model --prompt "Reply exactly A_MODEL_OK"
+
+# MCP: expect tool schemas, including read_blob and whoami
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind mcp
+
+# Prompt / Responses: expect A_PROMPT_RESPONSES_OK
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind prompt-agent-responses --prompt "Reply exactly A_PROMPT_RESPONSES_OK"
+
+# Hosted / Responses: expect A_HOSTED_RESPONSES_OK
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind hosted-agent-responses --prompt "Reply exactly A_HOSTED_RESPONSES_OK"
+
+# Prompt / A2A: expect A_PROMPT_A2A_OK in completed Task artifacts
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind declarative-agent --prompt "Reply exactly A_PROMPT_A2A_OK"
+
+# Hosted / A2A: expect A_HOSTED_A2A_OK in completed Task artifacts
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind hosted-agent --agent-name hosted --prompt "Reply exactly A_HOSTED_A2A_OK"
 ```
 
-Expected completed Task artifact: **`PROMPT_A2A_OK`**.
+#### Tutorial B: dedicated LiteLLM identity
 
-**Hosted agent - A2A**
+**Learning goal:** B changes the deployment's backend identity, not the
+identity of each request. It is a separate LiteLLM namespace, managed identity
+and key database assigned to app-alpha. It does not impersonate an arbitrary
+incoming application's identity.
+
+```text
+App-alpha caller -> APIM /ai-dedicated-application
+                    -> LiteLLM pod B (B's managed identity)
+                         |-> model directly
+                         |-> MCP-only sidecar -> FastMCP
+                         `-> prompt/hosted agents directly
+```
+
+Compare [B identity/federation/RBAC][src-profile-identities] with
+[the ServiceAccount binding][src-pod-binding]. The model and MCP/agent auth
+code is reused from A; the pod identity and admission key differ. The default
+demo still shares backend resources, so this is not data isolation by itself.
 
 ```powershell
-python -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT `
-  --kind hosted-agent --agent-name hosted --prompt "Reply exactly HOSTED_A2A_OK"
+$py = ".\.local\scenario-venv\Scripts\python.exe"
+.\scripts\Import-GatewayConsumerEnv.ps1 -Scenario dedicated-application -UseAzd
+$env:GATEWAY_ENDPOINT   # Expected suffix: /ai-dedicated-application
+
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind model --prompt "Reply exactly B_MODEL_OK"
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind mcp
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind prompt-agent-responses --prompt "Reply exactly B_PROMPT_RESPONSES_OK"
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind hosted-agent-responses --prompt "Reply exactly B_HOSTED_RESPONSES_OK"
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind declarative-agent --prompt "Reply exactly B_PROMPT_A2A_OK"
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind hosted-agent --agent-name hosted --prompt "Reply exactly B_HOSTED_A2A_OK"
 ```
 
-Expected completed Task artifact: **`HOSTED_A2A_OK`**. The private profile uses
-`--agent-name hosted`; omitting it selects the legacy deterministic Echo alias,
-which is not registered in the current private profile.
+#### Tutorial C: signed-in user through OBO
+
+**Learning goal:** MCP and agent invocation now authorize the actual user.
+OBO exchanges your gateway-audience token for a new target-audience token;
+it does not forward the original token unchanged or invent a user identity.
+
+```text
+Signed-in user -> APIM /ai-user-obo -> LiteLLM container (no auth sidecar)
+                                      |-> model directly [C pod managed identity]
+                                      |-> FastMCP [user token; native MCP OBO]
+                                      `-> prompt/hosted agent [user token; custom OBO]
+
+Token acquisition (not another proxy hop):
+LiteLLM -> Entra: user assertion + confidential-app credential + target scope
+Entra -> LiteLLM: new target-scoped delegated user token
+LiteLLM -> backend: Authorization bearer with that exchanged token
+
+The custom code is INSIDE LiteLLM, not another HTTP service.
+Hosted downstream calls still use runtime identity.
+```
+
+**Prerequisite:** the operator has provisioned C's registrations, permissions,
+allowlists, user RBAC and Key Vault credential; you have completed real
+[consent/login](#optional-per-user-consent-for-the-development-scenario).
+If your selected cache is missing or cannot refresh, the explicit login is:
+
+```powershell
+$py = ".\.local\scenario-venv\Scripts\python.exe"
+& $py -m accelerator.entra_setup login --identity .local\apim-litellm\entra-identity-user-consent.json --token-cache .local\apim-litellm\user-obo\user-token-cache.bin
+```
+
+Sign in as the permitted user. Do not use an operator/service token as a
+substitute. Read [native MCP OBO configuration][src-native-mcp-obo] versus the
+custom [A2A hook][src-a2a-obo], [Responses hook][src-responses-auth] and
+[Entra exchange/validation][src-obo-exchange].
+
+```powershell
+$py = ".\.local\scenario-venv\Scripts\python.exe"
+.\scripts\Import-GatewayConsumerEnv.ps1 -Scenario user-obo
+$env:GATEWAY_ENDPOINT   # Expected suffix: /ai-user-obo
+
+# Direct model still uses C's managed identity, not model OBO
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind model --prompt "Reply exactly C_MODEL_OK"
+
+# Native LiteLLM user OBO; this command initializes/lists tools
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind mcp
+
+# Custom user OBO inside LiteLLM for all four agent calls
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind prompt-agent-responses --prompt "Reply exactly C_PROMPT_RESPONSES_OK"
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind hosted-agent-responses --prompt "Reply exactly C_HOSTED_RESPONSES_OK"
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind declarative-agent --prompt "Reply exactly C_PROMPT_A2A_OK"
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind hosted-agent --agent-name hosted --prompt "Reply exactly C_HOSTED_A2A_OK"
+```
+
+**Read results consistently in every lesson:**
+
+* Responses: status `completed`, no error, exact marker in assistant
+  `output_text`, and the actual server `agent_reference`.
+* A2A: completed Task, exact marker in its artifacts; not just user history.
+  An absent `agent_reference` is normal, not proof of OBO failure.
+* MCP: `--kind mcp` initializes/lists schemas; it does **not** call `whoami`
+  or read Blob. Use the acceptance checks below for those identity/data proofs.
+* Keep `--agent-name hosted`: omitting it selects legacy Echo, which is not
+  registered in the private profile.
+* Missing consent, expired credentials or HTTP/JSON-RPC errors are failures;
+  never count an echoed input or HTTP 200 alone as success.
+
+#### Tutorial verification: beyond a successful answer
+
+The [consumer sample][src-consumer] is an invocation example, not an identity
+audit. The [live verifier][src-verifier] checks identities, Blob access,
+saved Tasks and denials. Run these separately, one profile at a time; they
+require the operator kubeconfig and call real services:
+
+```powershell
+# Prepared lab tools; these are operator CLI dependencies, not runtime sidecars
+$py = ".\.local\scenario-venv\Scripts\python.exe"
+$env:PATH = "$((Resolve-Path .local\tools).Path);$((Resolve-Path .local\tools\azd).Path);$env:PATH"
+
+# A: also reject B's foreign key
+& $py -m accelerator.apim_litellm verify --deployment .local\apim-litellm\deployment.json --scenario shared-service --use-azd --permissions --declarative --private-demo --reject-key-from dedicated-application --output .local\apim-litellm\shared-service\acceptance.json
+
+# B: also reject A's foreign key
+& $py -m accelerator.apim_litellm verify --deployment .local\apim-litellm\deployment.json --scenario dedicated-application --use-azd --permissions --declarative --private-demo --reject-key-from shared-service --output .local\apim-litellm\dedicated-application\acceptance.json
+
+# C: explicitly select the permitted user's encrypted token cache
+& $py -m accelerator.apim_litellm verify --deployment .local\apim-litellm\deployment.json --scenario user-obo --use-azd --permissions --declarative --private-demo --identity .local\apim-litellm\entra-identity-user-consent.json --user-token-cache .local\apim-litellm\user-obo\user-token-cache.bin --output .local\apim-litellm\user-obo\acceptance.json
+```
+
+`status: passed` is meaningful only after the actual command completes.
+The MCP checks invoke `whoami`/`read_blob` and compare against expected
+principals/users and the seeded Blob marker. Without the matching
+`terraform-outputs.json`, A/B expected-principal comparison is unavailable;
+retain that operator deployment receipt when reproducing identity evidence.
 
 ### Live recheck: actual results on 2026-11-25
 
@@ -133,8 +289,9 @@ User-message history and echoed input were not accepted as proof.
 | Prompt A2A | `A_PROMPT_A2A_OK` | `B_PROMPT_A2A_OK` | `C_PROMPT_A2A_OK` |
 | Hosted A2A | `A_HOSTED_A2A_OK` | `B_HOSTED_A2A_OK` | `C_HOSTED_A2A_OK` |
 
-The manual commands can use these scenario-prefixed markers or the shorter
-markers above; compare against the exact text you requested. Responses also
+The agent commands above use these scenario-prefixed markers; compare against
+the exact text you requested. Direct model examples use separate `*_MODEL_OK`
+markers. Responses also
 returned the expected server references: `gateway-declarative` version `1`
 and `gateway-hosted-dual` version `5`. A2A returned actual completed Task,
 context and artifact IDs, **not an `agent_reference`**.
@@ -363,6 +520,65 @@ session across users or unrelated consumer applications merely to reduce latency
 Increasing output verbosity adds no extra remote calls.
 
 ## TL;DR
+
+### Code map: models, MCP and agents in A, B and C
+
+Start with one row, follow its code/config links, then run that profile's
+tutorial. **Agents** below means both prompt and hosted agents, over both
+A2A and Responses; the linked files distinguish the two protocols.
+
+| Scenario / call | Identity and implementation | Exact repository code/config on GitHub | Reproduce |
+|---|---|---|---|
+| **A / model** | Shared LiteLLM managed identity; native Azure model provider | [Model YAML][src-model], [shared identity + federation][src-shared-identity], [pod binding][src-pod-binding] | [Tutorial A](#tutorial-a-shared-litellm-identity) |
+| **A / MCP** | Same managed identity; custom MCP-only sidecar | [Loopback MCP YAML][src-mcp-config], [sidecar token acquisition/forwarding][src-adapter], [workload credential][src-workload-credential] | [Tutorial A](#tutorial-a-shared-litellm-identity) |
+| **A / agents** | Same managed identity; native A2A auth, custom Responses auth inside LiteLLM | [A2A auth YAML][src-a2a-config], [private agent/Responses rendering][src-agent-render], [Responses token hook][src-responses-auth] | [Tutorial A](#tutorial-a-shared-litellm-identity) |
+| **B / model** | Separate app-alpha LiteLLM managed identity; same model-provider code | [Dedicated identity/federation/RBAC][src-profile-identities], [model YAML][src-model], [pod binding][src-pod-binding] | [Tutorial B](#tutorial-b-dedicated-litellm-identity) |
+| **B / MCP** | B's managed identity; same MCP-sidecar code as A | [Dedicated identity][src-profile-identities], [sidecar][src-adapter], [actual container selection][src-pod-layout] | [Tutorial B](#tutorial-b-dedicated-litellm-identity) |
+| **B / agents** | B's managed identity; native A2A auth, custom Responses auth inside LiteLLM | [Dedicated identity + agent RBAC][src-profile-identities], [A2A YAML][src-a2a-config], [Responses hook][src-responses-auth] | [Tutorial B](#tutorial-b-dedicated-litellm-identity) |
+| **C / model** | C pod's managed identity; **not model OBO** | [Model YAML][src-model], [C identity + model RBAC][src-profile-identities] | [Tutorial C](#tutorial-c-signed-in-user-through-obo) |
+| **C / MCP** | Delegated user; **native LiteLLM MCP OBO**, no auth sidecar | [Generated `entra_obo` YAML][src-native-mcp-obo], [secret-resolution helper][src-mcp-secret], [MCP `whoami` evidence][src-mcp-whoami] | [Tutorial C](#tutorial-c-signed-in-user-through-obo) |
+| **C / agents** | Delegated user; **custom Python inside LiteLLM**, no agent sidecar | [A2A OBO hook][src-a2a-obo], [Responses OBO hook][src-responses-auth], [user validation + Entra exchange][src-obo-exchange] | [Tutorial C](#tutorial-c-signed-in-user-through-obo) |
+
+These source links are pinned to **live-tested code commit `f8b40c9`** so line
+numbers remain reproducible. The linked implementation is demo code, not a
+claim that every capability is native LiteLLM. The
+[consumer][src-consumer], [credential loader][src-loader] and
+[identity/denial verifier][src-verifier] are shared by all profiles.
+
+**Configuration has two layers:** [base `config.yaml`][src-model] is the
+template; [the renderer][src-native-mcp-obo] adds profile-specific auth,
+agent endpoints and Kubernetes resources. Reading only the base YAML will
+not show C's generated OBO configuration. Operator-generated manifests are
+under `.local/apim-litellm/<scenario>/workloads.json`; do not commit local
+deployment files or credentials.
+
+**Why does `adapter.py` still mention A2A?** It retains legacy branches for
+older labs. The current [adapter environment][src-adapter-env] configures only
+the MCP target, while the [agent renderer][src-agent-render] registers direct
+Foundry URLs in LiteLLM. Those old adapter branches are not the current
+agent request path. Use the private-profile commands above, not legacy Echo
+deployment examples later in the operator reference.
+
+[src-model]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/config.yaml#L1-L8
+[src-mcp-config]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/config.yaml#L17-L22
+[src-a2a-config]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/config.yaml#L23-L46
+[src-shared-identity]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/infra/stacks/apim-litellm/main.tf#L162-L185
+[src-profile-identities]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/infra/stacks/apim-litellm/identity-profiles.tf#L19-L80
+[src-pod-binding]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/render.py#L165-L175
+[src-adapter]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/adapter.py#L65-L117
+[src-adapter-env]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/render.py#L68-L73
+[src-workload-credential]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/identity.py#L100-L110
+[src-pod-layout]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/render.py#L220-L242
+[src-agent-render]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/render.py#L134-L161
+[src-responses-auth]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/agent_responses.py#L42-L65
+[src-native-mcp-obo]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/render.py#L86-L132
+[src-mcp-secret]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/request_policy.py#L148-L175
+[src-mcp-whoami]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/fastmcp_server.py#L61-L77
+[src-a2a-obo]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/foundry_a2a.py#L39-L70
+[src-obo-exchange]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/obo.py#L39-L77
+[src-consumer]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/samples/consume_gateway.py#L120-L204
+[src-loader]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scripts/Import-GatewayConsumerEnv.ps1
+[src-verifier]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/accelerator/apim_litellm.py#L197-L442
 
 **Every path is Consumer -> APIM -> LiteLLM OSS -> backend.** APIM exposes APIs
 and validates the caller token. LiteLLM is the AI gateway: native virtual keys,
