@@ -320,6 +320,34 @@ and validates the caller token. LiteLLM is the AI gateway: native virtual keys,
 model routing and model/MCP/agent permissions. APIM does not invoke models or
 agents directly and does not replace the consumer token with its own identity.
 
+### Model-call authentication: A, B and C
+
+For a direct model call, the consumer sends two separate credentials:
+
+* `Authorization: Bearer <Entra access token>`: APIM validates the caller.
+* `x-litellm-api-key: Bearer <consumer virtual key>`: LiteLLM checks model access
+  and usage permissions. This is not a Foundry API key or the admin master key.
+
+LiteLLM then obtains its **own Entra token through AKS workload identity** to
+call the private Azure OpenAI model endpoint. Azure RBAC grants that identity
+model access; no Azure OpenAI API key or service-principal client secret is
+needed for this hop.
+
+| Direct model call | Identity used against Foundry/Azure OpenAI |
+|---|---|
+| **A: shared service** | Shared gateway workload identity. Consumers share this backend identity, with LiteLLM virtual-key permissions controlling gateway access. |
+| **B: dedicated application** | App-alpha gateway's separate workload identity. This is bound to the dedicated deployment, not automatic impersonation of the incoming caller. |
+| **C: user OBO profile** | C gateway's workload identity, **not the user's identity**. The user token controls gateway admission; this direct model route does not use OBO. |
+
+**Where C does use OBO:** direct MCP calls use native LiteLLM Entra OBO;
+agent invocations use the demo's custom in-process OBO. The hosted agent's own
+subsequent model/MCP calls use its hosted runtime identity, not the incoming
+user. C's Key Vault app secret supports those OBO exchanges, not direct model
+authentication. A private endpoint is network isolation, not a replacement
+for Entra authentication/RBAC.
+
+### Full scenario comparison
+
 | | A: `shared-service` | B: `dedicated-application` | C: `user-obo` |
 | --- | --- | --- | --- |
 | Public APIM base path | `/ai` | `/ai-dedicated-application` | `/ai-user-obo` |
@@ -328,7 +356,7 @@ agents directly and does not replace the consumer token with its own identity.
 | Hosted A2A **agent** | Native federated workload identity; direct Foundry URL | Dedicated workload identity; direct Foundry URL | Direct Foundry URL; custom in-process user OBO |
 | Declarative A2A **agent** | Native federated workload identity; direct Foundry URL | Dedicated workload identity; direct Foundry URL | Direct Foundry URL; custom in-process user OBO |
 | Custom **MCP** | LiteLLM workload identity | Dedicated application's workload identity | Native LiteLLM MCP Entra OBO |
-| Backend sees | Gateway service principal | Explicit application-bound gateway principal | Delegated user and middle-tier application |
+| Backend sees | Gateway service principal | Explicit application-bound gateway principal | Models: gateway workload identity. Direct MCP/agent invocation: delegated user and middle-tier application. |
 | Isolation mechanism | Native virtual-key model/object permissions and shared Azure RBAC | Separate namespace, PostgreSQL/key store, gateway workload identity and configurable Azure scopes | Native key permissions plus verified delegated audience/scopes/client/user allowlists and backend RBAC |
 | Namespace | `gateway` | `gateway-app-alpha` | `gateway-user-obo` |
 | OBO credential | Not required | Not required | App-registration secret in private Key Vault, mounted using workload identity |
