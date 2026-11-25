@@ -61,7 +61,7 @@ resource "azurerm_api_management_api_policy" "litellm" {
       <inbound>
         <base />
         <choose>
-          <when condition='@(!System.Text.RegularExpressions.Regex.IsMatch(context.Request.OriginalUrl.Path, "^/ai/(v1/(chat/completions|responses|models)|blob/mcp|a2a/(echo|declarative)(/\\.well-known/agent(-card)?\\.json)?)/?$"))'>
+          <when condition='@(!System.Text.RegularExpressions.Regex.IsMatch(context.Request.OriginalUrl.Path, "^/ai/(v1/(chat/completions|responses|models)|blob/mcp|a2a/(echo|declarative|hosted)(/\\.well-known/agent(-card)?\\.json)?)/?$"))'>
             <return-response>
               <set-status code="403" reason="Only published AI routes are allowed" />
             </return-response>
@@ -78,6 +78,7 @@ resource "azurerm_api_management_api_policy" "litellm" {
         <set-header name="x-litellm-user-role" exists-action="delete" />
         <set-header name="x-a2a-echo-authorization" exists-action="delete" />
         <set-header name="x-a2a-declarative-authorization" exists-action="delete" />
+        <set-header name="x-a2a-hosted-authorization" exists-action="delete" />
       </inbound>
       <backend><forward-request timeout="240" buffer-response="false" /></backend>
       <outbound><base /></outbound>

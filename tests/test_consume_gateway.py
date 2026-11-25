@@ -7,6 +7,17 @@ from samples.consume_gateway import main
 
 class ConsumerGatewayTests(unittest.TestCase):
     @patch("samples.consume_gateway.requests.post")
+    def test_private_agent_responses_uses_fixed_alias_and_responses_route(self, post):
+        post.return_value = Mock(json=Mock(return_value={"output": []}))
+        with patch.dict(os.environ, {"LITELLM_VIRTUAL_KEY": "sk-consumer", "GATEWAY_ACCESS_TOKEN": "user-assertion"}), \
+             patch("sys.argv", ["consume_gateway", "--endpoint", "https://gateway.example/ai",
+                                "--kind", "hosted-agent-responses", "--prompt", "hello"]), \
+             patch("builtins.print"):
+            main()
+        self.assertEqual(post.call_args.args[0], "https://gateway.example/ai/v1/responses")
+        self.assertEqual(post.call_args.kwargs["json"], {"model": "hosted-agent-responses", "input": "hello"})
+
+    @patch("samples.consume_gateway.requests.post")
     def test_application_key_and_entra_token_remain_separate(self, post):
         post.return_value = Mock(json=Mock(return_value={"choices": [{"message": {"content": "HELLO"}}]}))
         with patch.dict(os.environ, {"LITELLM_VIRTUAL_KEY": "sk-consumer", "GATEWAY_ACCESS_TOKEN": "user-assertion"}), \

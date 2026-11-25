@@ -60,6 +60,8 @@ def create_development_certificate(host: str, directory: Path) -> None:
 
 
 def prepare(args: argparse.Namespace) -> None:
+    if getattr(args, "private_demo", False) and not getattr(args, "enable_agent_responses", False):
+        raise ValueError("--private-demo requires --enable-agent-responses")
     deployment = load_json(args.deployment)
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
@@ -103,6 +105,18 @@ def prepare(args: argparse.Namespace) -> None:
         ),
     }
     env["FOUNDRY_DECLARATIVE_A2A_CARD_URL"] = env["FOUNDRY_DECLARATIVE_A2A_URL"].rstrip("/") + "/agentCard/v1.0"
+    if getattr(args, "enable_agent_responses", False):
+        project = (getattr(args, "agent_responses_project_endpoint", None)
+                   or args.a2a_endpoint.rstrip("/").rsplit("/agents/", 1)[0]).rstrip("/")
+        env.update({
+            "ENABLE_AGENT_RESPONSES": "true",
+            "FOUNDRY_PROMPT_RESPONSES_BASE": project + "/agents/gateway-declarative/endpoint/protocols/openai",
+            "FOUNDRY_HOSTED_RESPONSES_BASE": (
+                project + "/agents/gateway-hosted-dual/endpoint/protocols/openai"
+            ),
+        })
+        if getattr(args, "private_demo", False):
+            env["PRIVATE_FOUNDRY_DEMO"] = "true"
     if scenario == "user-obo":
         if not args.identity:
             raise ValueError("user-obo requires the Entra setup receipt; no service-identity fallback is allowed.")
@@ -165,12 +179,28 @@ def completed_a2a_text(result: dict[str, Any]) -> str:
     return "".join(part["text"] for part in message.get("parts", []) if isinstance(part.get("text"), str))
 
 
+def completed_response_text(result: dict[str, Any]) -> str:
+    if result.get("status") != "completed" or result.get("error") is not None:
+        raise RuntimeError("The agent Responses request did not complete successfully.")
+    messages = [
+        item for item in result.get("output", [])
+        if item.get("type") == "message" and item.get("role") == "assistant"
+    ]
+    if not messages:
+        raise RuntimeError("The agent Responses result contained no assistant message.")
+    return "".join(
+        part["text"] for item in messages
+        for part in item.get("content", []) if part.get("type") == "output_text"
+    )
+
+
 def verify(
     deployment: dict[str, Any], *, use_azd: bool = False, scenario: str = "shared-service",
     identity_receipt: dict[str, Any] | None = None, virtual_key: str | None = None,
     validate_permissions: bool = False, declarative: bool = False, user_token_cache: str | None = None,
     expected_backend_principal_id: str | None = None,
     reject_key_from: str | None = None,
+    private_demo: bool = False,
 ) -> dict[str, Any]:
     path = "/ai" if scenario == "shared-service" else "/ai-" + scenario
     base = deployment["apim"]["gateway_url"].rstrip("/") + path
@@ -198,6 +228,7 @@ def verify(
         token = identity.get_token(scope).token
     key = virtual_key or read_key(scenario)
     headers = {"Authorization": "Bearer " + token, "x-litellm-api-key": "Bearer " + key}
+    hosted_alias = "hosted" if private_demo else "echo"
     checks: dict[str, Any] = {}
     for path in ["/v1/chat/completions", "/blob/mcp", "/a2a/echo"]:
         response = requests.post(base + path, json={}, timeout=60)
@@ -228,7 +259,7 @@ def verify(
         if denied.status_code != 403:
             raise RuntimeError("APIM exposed the private key-management API.")
         restricted_headers = {**headers, "x-litellm-api-key": "Bearer " + read_key(scenario, "models-only")}
-        for backend_path in ["/blob/mcp", "/a2a/echo"]:
+        for backend_path in ["/blob/mcp", "/a2a/" + hosted_alias]:
             denied_payload = (
                 {"jsonrpc": "2.0", "id": 50, "method": "tools/list", "params": {}}
                 if backend_path == "/blob/mcp" else
@@ -338,9 +369,11 @@ def verify(
         return parse_rpc_response(response, request_id)
 
     sent = rpc("SendMessage", {
-        "message": {"messageId": str(uuid.uuid4()), "role": "ROLE_USER", "parts": [{"text": "hello"}]},
+        "message": {"messageId": str(uuid.uuid4()), "role": "ROLE_USER", "parts": [{
+            "text": "Reply exactly PRIVATE_AGENT_OK" if private_demo else "hello",
+        }]},
         "configuration": {"returnImmediately": False},
-    })
+    }, hosted_alias)
     if not isinstance(sent.get("task"), dict):
         raise RuntimeError("Expected a native A2A 1.0 SendMessage task envelope, not a translated legacy response.")
     task = sent["task"]
@@ -350,19 +383,20 @@ def verify(
         if time.monotonic() >= deadline:
             raise TimeoutError("A2A task did not complete.")
         time.sleep(3)
-        result = rpc("GetTask", {"id": task_id})
+        result = rpc("GetTask", {"id": task_id}, hosted_alias)
         task = result.get("task", result)
     if task.get("status", {}).get("state") not in {"completed", "TASK_STATE_COMPLETED"}:
         raise RuntimeError(f"A2A task failed: {task.get('status')}.")
     texts = [part.get("text") for artifact in task.get("artifacts", []) for part in artifact.get("parts", [])]
-    if texts != ["Echo: hello"]:
+    expected_artifact = "PRIVATE_AGENT_OK" if private_demo else "Echo: hello"
+    if texts != [expected_artifact]:
         raise RuntimeError(f"A2A returned unexpected artifacts: {texts}.")
-    result = rpc("GetTask", {"id": task_id})
+    result = rpc("GetTask", {"id": task_id}, hosted_alias)
     saved = result.get("task", result)
     # LiteLLM's send serializer omits text/plain, while native GetTask retains it.
     if saved.get("id") != task_id or canonical_artifacts(saved) != canonical_artifacts(task):
         raise RuntimeError("A2A saved Task differs from the completed Task.")
-    checks["a2a"] = {"task_id": task_id, "artifact": "Echo: hello", "saved_task_retrieved": True}
+    checks["a2a"] = {"task_id": task_id, "artifact": expected_artifact, "saved_task_retrieved": True}
     if declarative:
         result = rpc("SendMessage", {
             "message": {"messageId": str(uuid.uuid4()), "role": "ROLE_USER",
@@ -372,6 +406,43 @@ def verify(
         if completed_a2a_text(result).strip() != "DECLARATIVE_OK":
             raise RuntimeError("Declarative A2A agent omitted its acceptance marker.")
         checks["declarative_a2a"] = {"marker": "DECLARATIVE_OK", "native_send": True}
+    if private_demo:
+        results = {}
+        for alias, prompt, marker in [
+            ("prompt-agent-responses", "Reply exactly PRIVATE_RESPONSES_OK", "PRIVATE_RESPONSES_OK"),
+            ("hosted-agent-responses", "Reply exactly PRIVATE_RESPONSES_OK", "PRIVATE_RESPONSES_OK"),
+            ("hosted-agent-responses", "/mcp-read gateway-check.txt", "MCP_WORKLOAD_IDENTITY_OK"),
+            ("hosted-agent-responses", "/network-check", "INTERNET_EGRESS_BLOCKED"),
+        ]:
+            response = requests.post(
+                base + "/v1/responses", headers=headers, json={"model": alias, "input": prompt}, timeout=240,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            text = completed_response_text(payload)
+            if text.strip() != marker:
+                raise RuntimeError(f"{alias} did not return its required private-demo marker.")
+            suffix = "-mcp" if prompt.startswith("/mcp-read") else "-egress" if prompt == "/network-check" else ""
+            results[alias + suffix] = marker
+        checks["agent_responses"] = results
+        if validate_permissions:
+            for alias in ("prompt-agent-responses", "hosted-agent-responses"):
+                denied = requests.post(
+                    base + "/v1/responses", headers=restricted_headers,
+                    json={"model": alias, "input": "This request must be denied."}, timeout=90,
+                )
+                if denied.status_code not in {401, 403}:
+                    raise RuntimeError("The models-only key unexpectedly reached an agent Responses alias.")
+            denied = requests.post(
+                base + "/v1/responses", headers=headers,
+                json={
+                    "model": "hosted-agent-responses", "input": "This request must be denied.",
+                    "agent_reference": {"type": "agent_reference", "name": "another-agent"},
+                }, timeout=90,
+            )
+            if denied.status_code != 403:
+                raise RuntimeError("A caller-supplied agent reference was not denied by the registered-alias policy.")
+            checks["agent_responses_key_and_override_denials"] = True
     return {"verified_at": datetime.now(timezone.utc).isoformat(), "scenario": scenario,
             "endpoint": base, "checks": checks}
 
@@ -380,6 +451,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     preparation = commands.add_parser("prepare")
+    preparation.add_argument("--enable-agent-responses", action="store_true")
+    preparation.add_argument("--agent-responses-project-endpoint")
+    preparation.add_argument("--private-demo", action="store_true")
     preparation.add_argument("--deployment", required=True)
     preparation.add_argument("--a2a-endpoint", required=True)
     preparation.add_argument("--model-endpoint", required=True)
@@ -403,6 +477,7 @@ def main() -> None:
     verification.add_argument("--user-token-cache", help="OS-encrypted cache created by entra_setup login.")
     verification.add_argument("--kubeconfig", help="Operator kubeconfig; defaults beside the deployment receipt.")
     verification.add_argument("--reject-key-from", choices=list(NAMESPACES))
+    verification.add_argument("--private-demo", action="store_true")
     args = parser.parse_args()
     if args.command == "prepare":
         prepare(args)
@@ -423,7 +498,7 @@ def main() -> None:
                             identity_receipt=load_json(args.identity) if args.identity else None,
                             validate_permissions=args.permissions, declarative=args.declarative,
                             user_token_cache=args.user_token_cache, expected_backend_principal_id=expected_principal,
-                            reject_key_from=args.reject_key_from)
+                            reject_key_from=args.reject_key_from, private_demo=args.private_demo)
             result["status"] = "passed"
             save_receipt(args.output, result)
             passed = True

@@ -10,7 +10,7 @@
     </validate-azure-ad-token>
 %{ endif ~}
     <choose>
-      <when condition='@(!System.Text.RegularExpressions.Regex.IsMatch(context.Request.OriginalUrl.Path, "^/${path}/(v1/(chat/completions|responses|models)|blob/mcp|a2a/(echo|declarative)(/\\.well-known/agent(-card)?\\.json)?)/?$"))'>
+      <when condition='@(!System.Text.RegularExpressions.Regex.IsMatch(context.Request.OriginalUrl.Path, "^/${path}/(v1/(chat/completions|responses|models)|blob/mcp|a2a/(echo|declarative|hosted)(/\\.well-known/agent(-card)?\\.json)?)/?$"))'>
         <return-response><set-status code="403" reason="Only published AI routes are allowed" /></return-response>
       </when>
       <when condition='@(!context.Request.Headers.ContainsKey("x-litellm-api-key"))'>
@@ -25,12 +25,16 @@
     <set-header name="x-a2a-echo-authorization" exists-action="override">
       <value>@(context.Request.Headers.GetValueOrDefault("Authorization", ""))</value>
     </set-header>
+    <set-header name="x-a2a-hosted-authorization" exists-action="override">
+      <value>@(context.Request.Headers.GetValueOrDefault("Authorization", ""))</value>
+    </set-header>
     <set-header name="x-a2a-declarative-authorization" exists-action="override">
       <value>@(context.Request.Headers.GetValueOrDefault("Authorization", ""))</value>
     </set-header>
 %{ else ~}
     <set-header name="x-a2a-echo-authorization" exists-action="delete" />
     <set-header name="x-a2a-declarative-authorization" exists-action="delete" />
+    <set-header name="x-a2a-hosted-authorization" exists-action="delete" />
 %{ endif ~}
   </inbound>
   <backend><forward-request timeout="240" buffer-response="false" /></backend>

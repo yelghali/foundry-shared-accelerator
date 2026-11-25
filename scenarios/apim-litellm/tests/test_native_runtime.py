@@ -42,7 +42,7 @@ def capture_request(data, body):
     async def receive():
         return {"type": "http.request", "body": json.dumps(body).encode()}
 
-    request = Request({"type": "http", "path": "/v1/chat/completions"}, receive)
+    request = Request({"type": "http", "path": "/v1/chat/completions", "headers": []}, receive)
     setup = sys.modules["litellm.proxy.litellm_pre_call_utils"]
     return asyncio.run(setup.add_litellm_data_to_request(data, request))
 
@@ -170,6 +170,38 @@ def test_invalid_profile_inputs_fail_closed(environment, monkeypatch, name, valu
         load("render").render()
 
 
+def test_agent_responses_aliases_are_opt_in_and_fixed_to_foundry(environment, monkeypatch):
+    monkeypatch.setenv("ENABLE_AGENT_RESPONSES", "true")
+    monkeypatch.setenv("FOUNDRY_PROMPT_RESPONSES_BASE", "https://demo.services.ai.azure.com/api/projects/demo")
+    monkeypatch.setenv("FOUNDRY_HOSTED_RESPONSES_BASE", "https://demo.services.ai.azure.com/api/projects/demo/agents/hosted/endpoint/protocols/openai")
+    resources = load("render").render()["items"]
+    config = yaml.safe_load(next(r for r in resources if r["kind"] == "ConfigMap")["data"]["config.yaml"])
+    models = {entry["model_name"]: entry["litellm_params"] for entry in config["model_list"]}
+    assert models["prompt-agent-responses"]["model"] == "openai/gpt-4o-mini"
+    assert models["hosted-agent-responses"]["model"] == "openai/gateway-hosted-dual"
+    monkeypatch.setenv("FOUNDRY_HOSTED_RESPONSES_BASE", "http://caller.example/")
+    with pytest.raises(ValueError, match="Foundry HTTPS"):
+        load("render").render()
+
+
+def test_private_mcp_preserves_agent_source_for_network_policy_and_health_checks(environment, monkeypatch):
+    monkeypatch.setenv("FOUNDRY_AGENT_SUBNET_CIDR", "10.240.18.0/24")
+    resources = load("render").render()["items"]
+    service = next(r for r in resources if r["kind"] == "Service"
+                   and r["metadata"]["name"] == "fastmcp-foundry-internal")
+    assert service["metadata"]["annotations"]["service.beta.kubernetes.io/azure-load-balancer-internal"] == "true"
+    assert service["spec"]["externalTrafficPolicy"] == "Local"
+    assert service["spec"]["loadBalancerSourceRanges"] == ["10.240.18.0/24"]
+    policy = next(r for r in resources if r["kind"] == "NetworkPolicy")
+    assert policy["spec"]["ingress"][-1]["from"] == [{"ipBlock": {"cidr": "10.240.18.0/24"}}]
+
+
+def test_private_mcp_cannot_accept_public_source_range(environment, monkeypatch):
+    monkeypatch.setenv("FOUNDRY_AGENT_SUBNET_CIDR", "0.0.0.0/0")
+    with pytest.raises(ValueError, match="private delegated IPv4 subnet"):
+        load("render").render()
+
+
 @pytest.mark.parametrize("instance", ["litellm", "litellm-app-alpha"])
 def test_dedicated_profile_cannot_reuse_shared_database_namespace(environment, monkeypatch, instance):
     monkeypatch.setenv("AUTHENTICATION_SCENARIO", "dedicated-application")
@@ -186,6 +218,7 @@ def test_dedicated_profile_cannot_reuse_shared_database_namespace(environment, m
     {"tools": [{"type": "mcp", "server_url": "https://attacker.invalid"}]},
     {"metadata": {"nested": {"api_base": "https://attacker.invalid"}}},
     {"model": "azure/unregistered"},
+    {"extra_query": {"api-version": "caller-selected"}},
 ])
 def test_registered_backend_policy_rejects_overrides(monkeypatch, override):
     monkeypatch.setitem(sys.modules, "litellm.integrations.custom_logger",
@@ -196,6 +229,43 @@ def test_registered_backend_policy_rejects_overrides(monkeypatch, override):
     with pytest.raises(HTTPException) as exc:
         asyncio.run(policy.async_pre_call_hook(None, None, data, "completion"))
     assert exc.value.status_code == 403
+
+
+@pytest.mark.parametrize("field", ["agent_reference", "agent", "agent_id", "agent_name"])
+@pytest.mark.parametrize("nested", [False, True])
+def test_agent_response_alias_cannot_select_another_agent(monkeypatch, field, nested):
+    monkeypatch.setitem(sys.modules, "litellm.integrations.custom_logger",
+                        SimpleNamespace(CustomLogger=object))
+    policy = load("request_policy").policy
+    data = {}
+    override = {"extra_body": {field: "another-agent"}} if nested else {field: "another-agent"}
+    capture_request(data, {"model": "hosted-agent-responses", "input": "hello", **override})
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(policy.async_pre_call_hook(None, None, data, "aresponses"))
+    assert error.value.status_code == 403
+
+
+def test_responses_obo_receives_original_header_only_from_nonlogged_framework_capture(monkeypatch):
+    monkeypatch.setitem(sys.modules, "litellm.integrations.custom_logger",
+                        SimpleNamespace(CustomLogger=object))
+    authenticate = AsyncMock(side_effect=lambda data, body, **kwargs: data)
+    monkeypatch.setitem(sys.modules, "agent_responses", SimpleNamespace(authenticate=authenticate))
+    policy = load("request_policy").policy
+    body = {"model": "hosted-agent-responses", "input": "hello"}
+
+    async def receive():
+        return {"type": "http.request", "body": json.dumps(body).encode()}
+
+    request = Request({
+        "type": "http", "path": "/v1/responses",
+        "headers": [(b"authorization", b"Bearer captured-user")],
+    }, receive)
+    data = {"proxy_server_request": {"headers": {}}}
+    setup = sys.modules["litellm.proxy.litellm_pre_call_utils"]
+    asyncio.run(setup.add_litellm_data_to_request(data, request))
+    asyncio.run(policy.async_pre_call_hook(None, None, data, "aresponses"))
+    assert authenticate.await_args.kwargs["authorization"] == "Bearer captured-user"
+    assert "captured-user" not in json.dumps(data["proxy_server_request"])
 
 
 def test_registered_backend_policy_keeps_authorization_and_router_parameters(monkeypatch):
@@ -336,7 +406,7 @@ def test_capture_reads_original_bytes_not_mutated_cached_request_json(monkeypatc
     async def receive():
         return {"type": "http.request", "body": b'{"model":"enterprise-chat"}'}
 
-    request = Request({"type": "http", "path": "/v1/chat/completions"}, receive)
+    request = Request({"type": "http", "path": "/v1/chat/completions", "headers": []}, receive)
     request._json = {"model": "enterprise-chat", "metadata": {"headers": {}, "api_base": "native-injected"}}
     data = {"proxy_server_request": {"body": request._json}}
     asyncio.run(wrapped(data, request))

@@ -6,7 +6,8 @@ param(
     [string]$IdentityFile,
     [string]$UserTokenCache,
     [switch]$Live,
-    [switch]$UseAzd
+    [switch]$UseAzd,
+    [switch]$PrivateDemo
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -30,6 +31,7 @@ try {
             if ($IdentityFile) { $arguments += @("--identity", $IdentityFile) }
             if ($UserTokenCache -and $scenario -eq "user-obo") { $arguments += @("--user-token-cache", $UserTokenCache) }
             if ($UseAzd) { $arguments += "--use-azd" }
+            if ($PrivateDemo) { $arguments += "--private-demo" }
             if ($scenario -eq "shared-service" -and "dedicated-application" -in $Scenarios) {
                 $arguments += @("--reject-key-from", "dedicated-application")
             }

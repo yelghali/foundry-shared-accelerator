@@ -41,6 +41,9 @@ def install_request_capture():
         # Native logging excludes secret_fields. Do not copy raw credentials
         # into proxy_server_request, which is an auditable, enriched snapshot.
         result.setdefault("secret_fields", {})["_scenario_request"] = (_CAPTURE_OWNER, body)
+        result["secret_fields"]["_scenario_authorization"] = (
+            _CAPTURE_OWNER, request.headers.get("authorization"),
+        )
         return result
 
     capture._scenario_raw_capture = True
@@ -77,7 +80,7 @@ def registered_mcp_tool(value):
     } | {f"litellm_proxy/{identifier}" for identifier in ("blob", server.server_id)}
 
 
-def has_override(value):
+def has_override(value, *, agent_selection=False):
     if isinstance(value, dict):
         if value.get("type") == "mcp":
             # This sentinel selects the gateway registry, not a caller URL.
@@ -89,16 +92,18 @@ def has_override(value):
             "litellm_params", "litellm_settings", "router_settings",
             "model_list", "deployment_id", "api_type", "aws_access_key_id",
             "aws_secret_access_key", "aws_session_token", "vertex_credentials",
-            "credentials", "extra_headers", "headers", "proxy", "http_client",
+            "credentials", "extra_headers", "extra_query", "headers", "proxy", "http_client",
             "fallbacks", "context_window_fallbacks", "mock_response", "azure_scope",
             "client_id", "client_secret", "tenant_id", "server_url", "server_label",
             "connector_id", "model_info", "num_retries",
         }
+        if agent_selection:
+            forbidden |= {"agent_reference", "agent", "agent_id", "agent_name"}
         return bool(forbidden.intersection(value)) or any(
-            has_override(item) for item in value.values()
+            has_override(item, agent_selection=agent_selection) for item in value.values()
         )
     if isinstance(value, list):
-        return any(has_override(item) for item in value)
+        return any(has_override(item, agent_selection=agent_selection) for item in value)
     return False
 
 
@@ -120,8 +125,18 @@ class RegisteredBackendPolicy(CustomLogger):
         body = captured[1]
         if not isinstance(body, dict):
             raise HTTPException(status_code=400, detail="Invalid request body")
-        if has_override(body):
+        agent_response = body.get("model") in {"prompt-agent-responses", "hosted-agent-responses"}
+        if has_override(body, agent_selection=agent_response):
             raise HTTPException(status_code=403, detail="Backend overrides are not permitted")
+        if agent_response:
+            from agent_responses import authenticate
+
+            authorization = data.get("secret_fields", {}).get("_scenario_authorization")
+            value = (
+                authorization[1] if isinstance(authorization, tuple) and len(authorization) == 2
+                and authorization[0] is _CAPTURE_OWNER else None
+            )
+            return await authenticate(data, body, authorization=value)
         if body.get("model") and body["model"] != os.environ.get("MODEL_ALIAS", "enterprise-chat"):
             raise HTTPException(status_code=403, detail="Only the registered model alias is permitted")
         return data

@@ -6,7 +6,7 @@ from copy import deepcopy
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from accelerator.apim_litellm import verify, completed_a2a_text, main
+from accelerator.apim_litellm import verify, completed_a2a_text, completed_response_text, main
 
 
 DEPLOYMENT = {"apim": {"gateway_url": "https://gateway.example.com", "caller_audience": "api://gateway"}}
@@ -17,6 +17,21 @@ def response(value, status=200):
 
 
 class AcceptanceTests(unittest.TestCase):
+    def test_agent_responses_require_success_and_actual_assistant_output(self):
+        response = {
+            "status": "completed", "error": None,
+            "output": [{"type": "message", "role": "assistant", "content": [
+                {"type": "output_text", "text": "PRIVATE_RESPONSES_OK"},
+            ]}],
+        }
+        self.assertEqual(completed_response_text(response), "PRIVATE_RESPONSES_OK")
+        for status, error in [("failed", None), ("in_progress", None), ("completed", {"code": "failed"})]:
+            with self.subTest(status=status, error=error), self.assertRaisesRegex(RuntimeError, "did not complete"):
+                completed_response_text({**response, "status": status, "error": error})
+        response["output"][0]["role"] = "user"
+        with self.assertRaisesRegex(RuntimeError, "no assistant message"):
+            completed_response_text(response)
+
     def test_user_consent_configuration_does_not_replace_an_actual_user_login(self):
         identity = {"consent_mode": "user", "user_consent_configured": True, "admin_consent_requested": False}
         with patch("accelerator.apim_litellm.credential"), \

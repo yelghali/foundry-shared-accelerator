@@ -5,7 +5,7 @@ param(
     [string]$FoundryA2AEndpoint,
     [string]$ModelEndpoint,
     [string]$ModelDeployment = "gpt-4o-mini",
-    [string]$ImageTag = "20261124h",
+    [string]$ImageTag = "20261125g",
     [ValidateSet("shared-service", "dedicated-application", "user-obo")][string]$Scenario = "shared-service",
     [string]$IdentityFile,
     [string]$ScenarioVariablesFile,
@@ -14,6 +14,9 @@ param(
     [string]$BackendHostname,
     [ValidateSet("azurecli", "azd")][string]$KubernetesLoginMethod = "azurecli",
     [switch]$SkipBuild,
+    [switch]$EnableAgentResponses,
+    [string]$AgentResponsesProjectEndpoint,
+    [switch]$PrivateDemo,
     [switch]$Apply
 )
 Set-StrictMode -Version Latest
@@ -92,6 +95,9 @@ try {
             "--dns-label", $dnsLabel, "--exposure", $Exposure, "--scenario", $Scenario, "--output", $workloadsLocal)
         if ($IdentityFile) { $prepareArgs += @("--identity", (Resolve-Path $IdentityFile).Path) }
         if ($DeclarativeA2AEndpoint) { $prepareArgs += @("--declarative-endpoint", $DeclarativeA2AEndpoint) }
+        if ($EnableAgentResponses -or $PrivateDemo) { $prepareArgs += "--enable-agent-responses" }
+        if ($PrivateDemo) { $prepareArgs += "--private-demo" }
+        if ($AgentResponsesProjectEndpoint) { $prepareArgs += @("--agent-responses-project-endpoint", $AgentResponsesProjectEndpoint) }
         & python @prepareArgs
         if ($LASTEXITCODE -ne 0) { throw "Workload manifest generation failed." }
         & python -m accelerator.gateway_keys database --scenario $Scenario
@@ -125,7 +131,9 @@ try {
         if ($seedJobs.Count -ne 1) { throw "Expected one private-network Blob seed Job." }
         & kubectl -n $namespace wait --for=condition=complete "job/$($seedJobs[0].metadata.name)" --timeout=300s
         if ($LASTEXITCODE -ne 0) { throw "Private acceptance Blob seeding failed; inspect the seed Job logs." }
-        & python -m accelerator.gateway_keys keys --scenario $Scenario
+        $keyArgs = @("-m", "accelerator.gateway_keys", "keys", "--scenario", $Scenario)
+        if ($EnableAgentResponses -or $PrivateDemo) { $keyArgs += "--agent-responses" }
+        & python @keyArgs
         if ($LASTEXITCODE -ne 0) { throw "Native LiteLLM scoped virtual-key provisioning failed." }
     }
     if ($Stage -in @("release", "all")) {

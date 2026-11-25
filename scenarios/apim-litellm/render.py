@@ -8,6 +8,7 @@ import os
 import ipaddress
 import hashlib
 import re
+from copy import deepcopy
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -58,7 +59,7 @@ def render():
         "AZURE_API_VERSION": os.environ.get("AZURE_API_VERSION", "2024-10-21"),
         "LITELLM_TELEMETRY": "False",
         "KEEPALIVE_TIMEOUT": "300",
-        "LITELLM_WORKER_STARTUP_HOOKS": "foundry_a2a:install",
+        "LITELLM_WORKER_STARTUP_HOOKS": "foundry_a2a:install,agent_responses:install",
         "FOUNDRY_A2A_URL": required("FOUNDRY_A2A_URL"),
     }
     if os.environ.get("PROXY_BASE_URL", "").strip():
@@ -76,6 +77,10 @@ def render():
         "BLOB_ACCOUNT_URL": required("BLOB_ACCOUNT_URL"),
         "BLOB_CONTAINER": required("BLOB_CONTAINER"),
     }
+    for field in ("MCP_ALLOWED_CLIENT_IDS", "MCP_ALLOWED_PRINCIPAL_IDS"):
+        additional = os.environ.get(field.replace("ALLOWED", "FOUNDRY"), "").strip()
+        if additional:
+            mcp_env[field] = ",".join(dict.fromkeys((mcp_env[field] + "," + additional).split(",")))
     if os.environ.get("FOUNDRY_DECLARATIVE_A2A_URL", "").strip():
         gateway_env["FOUNDRY_DECLARATIVE_A2A_URL"] = required("FOUNDRY_DECLARATIVE_A2A_URL")
     if scenario == "user-obo":
@@ -125,6 +130,36 @@ def render():
             }
         agents.append(agent)
     settings["agents"] = agents
+    if os.environ.get("ENABLE_AGENT_RESPONSES", "").lower() == "true":
+        for alias, variable, model in (
+            ("prompt-agent-responses", "FOUNDRY_PROMPT_RESPONSES_BASE",
+             "openai/" + (os.environ.get("PROMPT_AGENT_MODEL", "").strip()
+                          or gateway_env["AZURE_MODEL"].removeprefix("azure/"))),
+            ("hosted-agent-responses", "FOUNDRY_HOSTED_RESPONSES_BASE", "openai/gateway-hosted-dual"),
+        ):
+            target = required(variable).rstrip("/")
+            parsed = urlsplit(target)
+            if (parsed.scheme != "https" or not parsed.hostname
+                    or not parsed.hostname.endswith(".services.ai.azure.com")
+                    or parsed.username or parsed.password or parsed.query or parsed.fragment):
+                raise ValueError(f"{variable} must be a fixed Foundry HTTPS base without credentials or query")
+            gateway_env[variable] = target
+            settings["model_list"].append({
+                "model_name": alias,
+                "litellm_params": {"model": model, "api_base": target, "drop_params": True},
+            })
+        hosted = deepcopy(settings["agents"][0])
+        hosted["agent_name"] = "hosted"
+        hosted["agent_card_params"].update(
+            name="Hosted model-backed agent",
+            description="Private model-backed hosted A2A agent",
+            url=gateway_env["FOUNDRY_HOSTED_RESPONSES_BASE"].removesuffix("/openai") + "/a2a",
+            skills=[{"id": "chat", "name": "Chat", "description": "Model and explicit MCP read", "tags": ["chat"]}],
+        )
+        gateway_env["FOUNDRY_HOSTED_A2A_URL"] = hosted["agent_card_params"]["url"]
+        settings["agents"].append(hosted)
+        if os.environ.get("PRIVATE_FOUNDRY_DEMO", "").lower() == "true":
+            settings["agents"] = [agent for agent in settings["agents"] if agent["agent_name"] != "echo"]
     config = yaml.safe_dump(settings, sort_keys=False)
     resources = [{"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": namespace}}]
     for name, client in [
@@ -274,6 +309,27 @@ def render():
                  "ingress": [{"from": [{"podSelector": {"matchLabels": {"app": instance}}}],
                               "ports": [{"protocol": "TCP", "port": 8000}]}]},
     })
+    if os.environ.get("FOUNDRY_AGENT_SUBNET_CIDR", "").strip():
+        agent_network = ipaddress.ip_network(required("FOUNDRY_AGENT_SUBNET_CIDR"), strict=True)
+        if agent_network.version != 4 or not agent_network.is_private:
+            raise ValueError("FOUNDRY_AGENT_SUBNET_CIDR must be the private delegated IPv4 subnet")
+        resources[-1]["spec"]["ingress"].append({
+            "from": [{"ipBlock": {"cidr": str(agent_network)}}],
+            "ports": [{"protocol": "TCP", "port": 8000}],
+        })
+        resources.append({
+            "apiVersion": "v1", "kind": "Service",
+            "metadata": {
+                "name": "fastmcp-foundry-internal", "namespace": namespace,
+                "annotations": {"service.beta.kubernetes.io/azure-load-balancer-internal": "true"},
+            },
+            "spec": {
+                "type": "LoadBalancer", "selector": {"app": "fastmcp"},
+                "externalTrafficPolicy": "Local",
+                "loadBalancerSourceRanges": [str(agent_network)],
+                "ports": [{"port": 8000, "targetPort": 8000}],
+            },
+        })
     return {"apiVersion": "v1", "kind": "List", "items": resources}
 
 

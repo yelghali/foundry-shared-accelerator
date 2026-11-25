@@ -8,10 +8,13 @@ param(
     [string]$IdentityFile,
     [ValidateSet("shared-service", "dedicated-application", "user-obo")]
     [string[]]$Scenarios = @("shared-service", "dedicated-application", "user-obo"),
-    [string]$ImageTag = "20261124h",
+    [string]$ImageTag = "20261125g",
     [ValidateSet("public", "private")][string]$Exposure = "public",
     [ValidateSet("azurecli", "azd")][string]$KubernetesLoginMethod = "azurecli",
     [switch]$SkipBuild,
+    [switch]$EnableAgentResponses,
+    [string]$AgentResponsesProjectEndpoint,
+    [switch]$PrivateDemo,
     [switch]$Apply
 )
 Set-StrictMode -Version Latest
@@ -49,6 +52,9 @@ $common = @{
     ModelEndpoint = $ModelEndpoint; ModelDeployment = $ModelDeployment
     IdentityFile = $IdentityFile; ImageTag = $ImageTag; Exposure = $Exposure
     KubernetesLoginMethod = $KubernetesLoginMethod
+    EnableAgentResponses = $EnableAgentResponses
+    AgentResponsesProjectEndpoint = $AgentResponsesProjectEndpoint
+    PrivateDemo = $PrivateDemo
 }
 & (Join-Path $PSScriptRoot "Deploy-APIMLiteLLM.ps1") @common -Stage infrastructure -Apply:$Apply
 if (-not $?) { throw "Identity-scenario infrastructure failed." }

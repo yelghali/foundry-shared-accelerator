@@ -166,11 +166,12 @@ def catalog_rows(value: Any) -> list[dict[str, Any]]:
     raise ValueError("Unrecognized LiteLLM catalog response; no keys were generated.")
 
 
-def provision_keys(kube: Kubernetes, scenario: str) -> dict[str, Any]:
+def provision_keys(kube: Kubernetes, scenario: str, *, agent_responses: bool = False) -> dict[str, Any]:
     servers = catalog_rows(private_api(kube, "GET", "/v1/mcp/server"))
     agents = catalog_rows(private_api(kube, "GET", "/v1/agents"))
     server_ids = [str(server["server_id"]) for server in servers if server.get("server_name", server.get("name")) == "blob"]
-    agent_ids = [str(agent["agent_id"]) for agent in agents if agent.get("agent_name") in {"echo", "declarative"}]
+    allowed_agents = {"echo", "declarative", "hosted"} if agent_responses else {"echo", "declarative"}
+    agent_ids = [str(agent["agent_id"]) for agent in agents if agent.get("agent_name") in allowed_agents]
     if len(server_ids) != 1 or not agent_ids:
         raise ValueError("The expected Blob MCP server and agent registrations are not ready.")
     stored = kube.secret("litellm-client-keys") or {}
@@ -185,6 +186,8 @@ def provision_keys(kube: Kubernetes, scenario: str) -> dict[str, Any]:
             "models": ["enterprise-chat"], "metadata": {"scenario": scenario},
             "object_permission": permissions,
         }
+        if agent_responses and alias == "application":
+            body["models"] += ["prompt-agent-responses", "hosted-agent-responses"]
         if existing_key:
             # Reconcile a previously minted key without replacing a distributed credential.
             private_api(kube, "POST", "/key/update", {"key": existing_key, **body})
@@ -229,13 +232,14 @@ def main() -> None:
     parser.add_argument("--output")
     parser.add_argument("--identity")
     parser.add_argument("--client-id")
+    parser.add_argument("--agent-responses", action="store_true")
     args = parser.parse_args()
     kube = Kubernetes(NAMESPACES[args.scenario])
     if args.command == "database":
         bootstrap_database(kube)
         print(f"Persistent PostgreSQL and durable native-key credentials ready in {kube.namespace}.")
     elif args.command == "keys":
-        print(json.dumps(provision_keys(kube, args.scenario), indent=2))
+        print(json.dumps(provision_keys(kube, args.scenario, agent_responses=args.agent_responses), indent=2))
     elif args.command == "secret-provider":
         if args.scenario != "user-obo" or not args.identity or not args.client_id:
             raise ValueError("secret-provider requires user-obo, --identity and --client-id.")

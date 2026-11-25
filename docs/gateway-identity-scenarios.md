@@ -5,6 +5,41 @@ This runbook deploys a standalone demo; it is **not integrated into Day 0
 platform setup or Day 1/team onboarding**. Existing Foundry/model resources
 are explicit inputs, not automatically onboarded team projects.
 
+## Current private profile, 2026-11-25
+
+The demo-owned account `fsapriv1125`, project `private-gateway-demo`, has public
+network access **Disabled**. A/B/C gateways run release `20261125g`. Their model
+and agent targets now use that private account; the original public-enabled
+`aif-agentgw-xlen9` account remains separate.
+
+[![Private demo network and protocol paths](diagrams/apim-litellm-private-demo.svg)](diagrams/apim-litellm-private-demo.svg)
+
+The current private-mode hosted alias is **`hosted`**, backed by
+`gateway-hosted-dual`; `declarative` is the model-only prompt agent. Both expose
+A2A and dedicated Responses endpoints. LiteLLM Responses aliases are
+`hosted-agent-responses` and `prompt-agent-responses`.
+
+The shipped `Test-GatewayScenarios.ps1 -PrivateDemo -Live` workflow passed all
+three profiles: models, direct MCP, both A2A agents, hosted saved Task retrieval,
+both Responses aliases, hosted-agent private MCP reads, fixed public HTTPS
+denial, key isolation and caller agent-override denials. C used the real
+consented-user cache. This run passed **191 selected Python tests, 13 subtests
+and 6 Terraform tests**; two local native-schema checks skipped.
+The final repository-wide run passed **230 Python tests and 17 subtests**,
+with the same two local native-schema skips. The private Foundry Terraform
+root also converged to a verified zero-change plan.
+
+**Boundaries:** the hosted agent calls MCP using its own runtime identity, not
+automatic downstream user OBO. Its MCP connection is HTTP inside the private
+VNet, not end-to-end TLS. Native prompt-agent private MCP was attempted but is
+not enabled on the published model-only prompt version. Cross-user isolation,
+streaming and exhaustive egress certification remain separate checks.
+
+Use the [private-profile setup and consumer commands](../scenarios/apim-litellm/README.md#private-profile-upgrade-of-the-standalone-gateway)
+and [private Foundry infrastructure](../infra/stacks/demo-private-foundry/README.md).
+Add **`-PrivateDemo`** when testing the current deployment; legacy mode below
+expects the deterministic `echo` alias and remains available for older labs.
+
 ## TL;DR
 
 **Every path is Consumer -> APIM -> LiteLLM OSS -> backend.** APIM exposes APIs
@@ -47,7 +82,7 @@ separate. These profiles use conventional **APIM Standard v2** and AKS.
 
 ### Current deployment and consent options
 
-The three profiles are deployed in East US 2 using gateway release `20261124h`:
+The three profiles are deployed in East US 2 using gateway release `20261125g`:
 
 * `https://fsa-lit1120-apim.azure-api.net/ai`
 * `https://fsa-lit1120-apim.azure-api.net/ai-dedicated-application`
@@ -303,7 +338,8 @@ or separate browser profiles: localhost cookies are not isolated by port.
 | --- | --- |
 | Model Playground | Choose the configured `enterprise-chat` alias; streaming is supported. |
 | MCP / tools | Select `enterprise-chat` plus the registered `blob` MCP tools; ask it to read `gateway-check.txt`. |
-| Agents / A2A Playground | Select `echo` or `declarative`; use non-streaming `message/send`. |
+| Agents / A2A Playground | Current private mode: select `hosted` or `declarative`; use non-streaming `message/send`. Legacy mode alone includes `echo`. |
+| Agent Responses | Use `/v1/responses` with `prompt-agent-responses` or `hosted-agent-responses`; C needs the actual delegated user token. |
 | Virtual-key management | Inspect/create/restrict keys in this namespace's persistent database. |
 | APIM JWT admission and application-key isolation | Use `Test-GatewayScenarios.ps1`; direct admin UI calls do not test APIM. |
 | User OBO | Verified through the scripted C consumer flow with a real delegated user token. Admin UI login alone is **not** a user assertion and does not reproduce that flow. |
@@ -322,13 +358,16 @@ enable `blob-read_blob` and ask: **Use the blob MCP tool to read
 gateway-check.txt and return its exact contents.** The expected document contains
 `MCP_WORKLOAD_IDENTITY_OK`.
 
-For agents, send **hello** to `echo` (expected **Echo: hello**) or ask
+In legacy mode, send **hello** to `echo` (expected **Echo: hello**) or ask
 `declarative` to **Reply exactly DECLARATIVE_OK**. Foundry preview streaming is
 not enabled. The pinned LiteLLM UI sends legacy `message/send` and expects
 legacy-shaped results; the local admin bridge normalizes only that UI response
 for display. The deployed gateway and APIM consumer endpoints retain native
 A2A 1.0 `SendMessage`/`GetTask` envelopes. A UI **Needs Setup** badge on these
 config-managed entries is not a backend health check.
+In current private mode, select `hosted` and ask **Reply exactly PRIVATE_AGENT_OK**.
+The Responses aliases are non-streaming-tested; do not infer streaming coverage
+from the model Playground's separate streaming test.
 Agent details now show the actual Foundry HTTPS URL rather than the old loopback
 address. Keep `agent_card_path: agentCard/v1.0` and the Entra parameters together;
 the standard well-known card path is not Foundry's protected-card endpoint.
@@ -452,8 +491,12 @@ phase; it does not read secrets or require access to the private Vault.
 
 ### 3. Publish hosted and declarative agents
 
-Deploy [the hosted Echo sample](../samples/hosted-a2a-echo/azure.yaml) as described
-in the existing guide. Then create/reconcile the declarative A2A sample:
+Use the standalone prerequisites from the [demo README](../scenarios/apim-litellm/README.md#short-setup-path-existing-foundry-demo-managed-prerequisites).
+Deploy/reuse the model with [Deploy-DemoModel.ps1](../scripts/Deploy-DemoModel.ps1),
+and deploy [hosted Echo](../samples/hosted-a2a-echo/README.md) into the existing
+project with [Deploy-DemoHostedAgent.ps1](../scripts/Deploy-DemoHostedAgent.ps1).
+Neither script invokes Day 0 or team onboarding. The hosted receipt supplies
+the exact A2A URL to the gateway wrapper. Then create/reconcile the declarative A2A sample:
 
 ```powershell
 python -m accelerator.gateway_agents `

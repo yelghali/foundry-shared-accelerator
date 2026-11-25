@@ -68,5 +68,5 @@
 
   <text x="40" y="885" class="body">Solid arrows: configured delegated API permissions. Dashed arrows: configuration / credential relationships.</text>
   <text x="40" y="930" class="body">Consent allows delegation; it does not grant Foundry RBAC or bypass MCP user/client allowlists.</text>
-  <text x="40" y="975" class="body">Models in A/B/C use gateway WI. A/B backend service calls do not use these three custom OBO app registrations.</text>
+  <text x="40" y="975" class="body">Direct model calls use gateway WI. Hosted internal calls use runtime identity. A/B service calls need no custom OBO apps.</text>
 </svg>

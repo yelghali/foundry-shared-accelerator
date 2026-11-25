@@ -1,0 +1,16 @@
+{
+  "subscription_id": "00000000-0000-0000-0000-000000000001",
+  "tenant_id": "00000000-0000-0000-0000-000000000002",
+  "operator_object_id": "00000000-0000-0000-0000-000000000003",
+  "name": "uniquedemofoundry",
+  "location": "eastus2",
+  "project_name": "private-gateway-demo",
+  "gateway_vnet_id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/<demo-gateway-rg>/providers/Microsoft.Network/virtualNetworks/<demo-vnet>",
+  "agent_subnet_cidr": "10.240.18.0/24",
+  "existing_private_dns_zone_ids": [],
+  "link_existing_private_dns_zones": true,
+  "gateway_model_principal_ids": [],
+  "gateway_agent_principal_ids": [],
+  "model_name": "gpt-4o-mini",
+  "model_version": "2024-07-18"
+}

@@ -16,11 +16,18 @@ from accelerator.mcp import MCPClient, parse_rpc_response
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--endpoint", required=True, help="Public APIM base including /ai or its named scenario suffix.")
-    parser.add_argument("--kind", choices=["model", "mcp", "hosted-agent", "declarative-agent"], required=True)
+    parser.add_argument("--kind", choices=[
+        "model", "mcp", "hosted-agent", "declarative-agent",
+        "hosted-agent-responses", "prompt-agent-responses",
+    ], required=True)
+    parser.add_argument("--agent-name", choices=["echo", "hosted"],
+                        help="A2A hosted alias; use hosted for the private demo, echo for the legacy transport sample.")
     parser.add_argument("--prompt", default="Reply exactly HELLO")
     parser.add_argument("--identity")
     parser.add_argument("--user-token-cache")
     args = parser.parse_args()
+    if args.agent_name and args.kind != "hosted-agent":
+        raise ValueError("--agent-name applies only to --kind hosted-agent")
     parsed = urlsplit(args.endpoint)
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
         raise ValueError("Provide an HTTPS APIM base URL without credentials, query or fragment.")
@@ -55,7 +62,15 @@ def main() -> None:
         response.raise_for_status()
         print(response.json()["choices"][0]["message"]["content"])
         return
-    agent = "echo" if args.kind == "hosted-agent" else "declarative"
+    if args.kind in {"hosted-agent-responses", "prompt-agent-responses"}:
+        response = requests.post(
+            base + "/v1/responses", headers=headers,
+            json={"model": args.kind, "input": args.prompt}, timeout=240,
+        )
+        response.raise_for_status()
+        print(json.dumps(response.json(), indent=2))
+        return
+    agent = (args.agent_name or "echo") if args.kind == "hosted-agent" else "declarative"
     response = requests.post(
         base + "/a2a/" + agent, headers={**headers, "A2A-Version": "1.0"},
         json={"jsonrpc": "2.0", "id": 1, "method": "SendMessage", "params": {

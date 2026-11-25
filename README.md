@@ -108,7 +108,12 @@ This is a separately deployed, Azure-tested **demo**, not part of the Day 0
 platform deployment or Day 1/team-onboarding logic. It reuses an explicitly
 supplied Foundry project/model account and does not switch the main gateway.
 
-[![Standalone APIM and LiteLLM demo](docs/diagrams/gateway-identity-scenarios.svg)](scenarios/apim-litellm/README.md)
+[![Standalone private Foundry and LiteLLM demo](docs/diagrams/apim-litellm-private-demo.svg)](scenarios/apim-litellm/README.md)
+
+The current demo profile has private-only Foundry model/agent endpoints and
+private AKS MCP. Prompt and model-backed hosted agents are exposed through both
+A2A and Responses, with live A/B/C identity tests. See the demo's explicit
+private-HTTP MCP and native prompt-tool limitations; it is not production HA.
 
 ## More detail
 
@@ -132,7 +137,8 @@ supplied Foundry project/model account and does not switch the main gateway.
 This is an operational **dev** profile, not a production HA or billing
 solution. State and generated receipts are local under `.local/`; protect
 state and use a remote backend for production. The default native-gateway scenario does not deploy hosted agents; the optional
-[standalone APIM/LiteLLM demo](scenarios/apim-litellm/README.md) includes a hosted A2A Echo sample.
+[standalone APIM/LiteLLM demo](scenarios/apim-litellm/README.md) includes private
+model-backed A2A/Responses agents and preserves the hosted Echo transport sample.
 A self-service onboarding form is not implemented. Deployed resources remain running and
 can incur charges; nothing is automatically destroyed. See the
 [architecture](docs/architecture-plan.md) and [regional guide](docs/regional-deployment.md)

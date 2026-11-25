@@ -13,6 +13,7 @@ from azure.ai.projects.models import (
     AgentEndpointConfig,
     FixedRatioVersionSelectionRule,
     PromptAgentDefinition,
+    MCPTool,
     ProtocolConfiguration,
     ResponsesProtocolConfiguration,
     VersionSelector,
@@ -23,16 +24,40 @@ from azure.identity import AzureCliCredential, AzureDeveloperCliCredential
 from .control import ControlPlane, save_receipt
 
 
-def deploy(project_endpoint: str, project_id: str, tenant_id: str, model: str, *, use_azd: bool) -> dict:
+def deploy(project_endpoint: str, project_id: str, tenant_id: str, model: str, *, use_azd: bool,
+           private_proxy_namespace: str | None = None, mcp_url: str | None = None,
+           mcp_audience: str | None = None) -> dict:
     identity = (AzureDeveloperCliCredential if use_azd else AzureCliCredential)(
         tenant_id=tenant_id, process_timeout=180,
     )
     name = "gateway-declarative"
+    tools = []
+    if mcp_url:
+        if not mcp_audience:
+            raise ValueError("An explicit MCP audience is required for project managed-identity authentication")
+        connection = project_id + "/connections/private-demo-mcp"
+        ControlPlane(identity).put(connection, {"properties": {
+            "category": "RemoteTool", "authType": "ProjectManagedIdentity",
+            "target": mcp_url, "audience": mcp_audience,
+            "isSharedToAll": False, "credentials": {}, "metadata": {"ApiType": "Azure"},
+        }}, version="2025-10-01-preview")
+        tools = [MCPTool(
+            server_label="private_blob", server_url=mcp_url, project_connection_id=connection,
+            allowed_tools=["whoami", "read_blob"], require_approval="never",
+        )]
     definition = PromptAgentDefinition(
         model=model,
-        instructions="For gateway acceptance tests return exactly the requested marker, without extra text. Do not call tools.",
+        instructions=("Use the approved private MCP tool when the user asks for Blob contents or identity evidence. "
+                      "Otherwise return exactly the requested marker without extra text."
+                      if tools else
+                      "For gateway acceptance tests return exactly the requested marker, without extra text. Do not call tools."),
+        **({"tools": tools} if tools else {}),
     )
-    with AIProjectClient(endpoint=project_endpoint, credential=identity, allow_preview=True) as client:
+    options = {}
+    if private_proxy_namespace:
+        from .private_foundry import sdk_transport
+        options["transport"] = sdk_transport(project_endpoint, private_proxy_namespace)
+    with AIProjectClient(endpoint=project_endpoint, credential=identity, allow_preview=True, **options) as client:
         try:
             client.agents.get(agent_name=name)
         except ResourceNotFoundError:
@@ -89,8 +114,13 @@ def main() -> None:
     parser.add_argument("--use-azd", action="store_true")
     parser.add_argument("--user-object-id", action="append", default=[])
     parser.add_argument("--output", required=True)
+    parser.add_argument("--private-proxy-namespace", choices=["gateway", "gateway-app-alpha", "gateway-user-obo"])
+    parser.add_argument("--mcp-url")
+    parser.add_argument("--mcp-audience")
     args = parser.parse_args()
-    value = deploy(args.project_endpoint, args.project_id, args.tenant_id, args.model, use_azd=args.use_azd)
+    value = deploy(args.project_endpoint, args.project_id, args.tenant_id, args.model, use_azd=args.use_azd,
+                   private_proxy_namespace=args.private_proxy_namespace,
+                   mcp_url=args.mcp_url, mcp_audience=args.mcp_audience)
     if args.user_object_id:
         identity = (AzureDeveloperCliCredential if args.use_azd else AzureCliCredential)(
             tenant_id=args.tenant_id, process_timeout=180,

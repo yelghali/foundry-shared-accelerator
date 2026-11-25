@@ -5,6 +5,12 @@ authentication diagrams, app registrations and consent. This demo remains
 separate from platform deployment and team onboarding; it is not a Day 0/1
 gateway-provider integration.
 
+**Current private profile (2026-11-25):** see the demo README for the deployed
+private-only Foundry account, model-backed hosted/prompt agents over A2A and
+Responses, and hosted-agent access to private AKS MCP. Use `-PrivateDemo` for
+its acceptance tests. The public-backend Echo and APIM-MI sections below are
+historical background, not the current private network/auth contract.
+
 **Current authentication profiles:** use the
 [identity-scenario guide](gateway-identity-scenarios.md) for native OSS virtual
 keys, persistent key storage, application isolation and user OBO. The November
@@ -141,6 +147,13 @@ The wrapper refuses deletion/replacement plans. Use an explicitly reviewed
 Terraform workflow for intentional destructive changes.
 
 ### 2. Deploy the hosted Echo agent
+
+For repeatable deployment into an existing project, prefer the current
+[Deploy-DemoHostedAgent.ps1 wrapper](../scripts/Deploy-DemoHostedAgent.ps1).
+The [sample README](../samples/hosted-a2a-echo/README.md) explains exact upstream
+adaptations. Model prerequisites now have their own
+[standalone Terraform helper](../infra/stacks/demo-foundry-model/README.md).
+The following manual commands remain background for the tested azd workflow.
 
 Run from the sample directory. Using an existing manifest/environment avoids
 template-copy initialization issues in ignored working directories.

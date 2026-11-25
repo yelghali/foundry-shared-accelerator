@@ -31,7 +31,7 @@
     {"id":"custody-label","type":"text","x":1050,"y":465,"width":350,"height":70,"text":"Credential custody;\nnot another runtime hop","fontSize":14,"fontFamily":2,"strokeColor":"#000000"},
     {"id":"legend","type":"text","x":40,"y":860,"width":1360,"height":40,"text":"Solid: delegated API permissions. Dashed: configuration / credential relationships.","fontSize":16,"fontFamily":2,"strokeColor":"#000000"},
     {"id":"rbac-note","type":"text","x":40,"y":910,"width":1360,"height":40,"text":"Consent allows delegation; it does not grant Foundry RBAC or bypass MCP user/client allowlists.","fontSize":16,"fontFamily":2,"strokeColor":"#000000"},
-    {"id":"models-note","type":"text","x":40,"y":960,"width":1360,"height":40,"text":"Models in A/B/C use gateway WI. A/B backend service calls do not use these three custom OBO app registrations.","fontSize":16,"fontFamily":2,"strokeColor":"#000000"}
+    {"id":"models-note","type":"text","x":40,"y":960,"width":1360,"height":40,"text":"Direct models use gateway WI. Hosted internal calls use runtime identity. A/B service calls need no custom OBO apps.","fontSize":16,"fontFamily":2,"strokeColor":"#000000"}
   ],
   "appState": {"viewBackgroundColor":"#ffffff","gridSize":20},
   "files": {}

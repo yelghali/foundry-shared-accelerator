@@ -5,7 +5,11 @@ Day 0 infrastructure or Day 1/team-onboarding workflows.** It deploys real
 Azure resources and has been live-tested, but has its own Terraform state,
 configuration, identities, consumer keys and release scripts.
 
-The demo **reuses an explicitly supplied Foundry project and model account**.
+The demo can **reuse an explicitly supplied Foundry project/model account** or
+provision a **demo-owned private Foundry account, project and model** alongside
+the standalone gateway VNet. The private profile below is now deployed.
+Existing-resource model and hosted-Echo helpers remain available; there is no
+manual agent-code copying step.
 It does not create projects for teams, onboard members, provision team knowledge,
 or automatically publish each team's models/agents into LiteLLM. A/B/C below
 are authentication examples, not automated team lifecycle stages.
@@ -18,6 +22,68 @@ Jump to: [Models](#model-calling-applies-to-a-b-and-c),
 or [deployment and tests](#deploy-and-test-this-standalone-demo).
 
 ## What this demo shows
+
+### Current private profile: deployed and tested on 2026-11-25
+
+The gateway release is `20261125g`. The private Foundry account is
+`fsapriv1125`, project `private-gateway-demo`; its public network access is
+**Disabled**. The private image registry is `fsapriv1125acr`.
+
+| Consumer alias / route | Private backend | Authentication |
+|---|---|---|
+| `enterprise-chat` via `/v1/chat/completions` | Private model deployment | Selected gateway's AKS workload identity |
+| `prompt-agent-responses` via `/v1/responses` | Prompt agent's dedicated Responses endpoint | Gateway WI in A/B; actual user OBO in C |
+| `hosted-agent-responses` via `/v1/responses` | Model-backed hosted agent's dedicated Responses endpoint | Gateway WI in A/B; actual user OBO in C |
+| `/a2a/declarative` | Same private prompt agent | Gateway WI in A/B; actual user OBO in C |
+| `/a2a/hosted` | Same private hosted agent | Gateway WI in A/B; actual user OBO in C |
+| `/blob/mcp` | Profile's private AKS MCP | Gateway WI in A/B; native MCP OBO in C |
+
+The private profile removes the legacy `echo` registry entry; Echo's code
+sample and earlier public-account deployment are preserved separately. The
+new hosted agent performs actual model inference, not deterministic echoing.
+
+```mermaid
+flowchart LR
+    U[Public consumer] --> A[Public APIM Standard v2]
+    A --> L[LiteLLM on AKS - public ingress allowed]
+    subgraph V[Standalone demo VNet - private backend paths]
+        L --> PE[Foundry private endpoint and DNS]
+        PE --> F[Demo-owned Foundry - public access disabled]
+        F --> P[Prompt agent - A2A and Responses]
+        F --> H[Hosted model-backed agent - A2A and Responses]
+        P --> Model[Private model deployment]
+        H --> Model
+        H --> S[Delegated agent subnet - outbound restriction]
+        S --> M[Private HTTP MCP on AKS - no public listener]
+        L --> M
+        M --> B[Private Blob]
+    end
+```
+
+The MCP link in the deployed demo is **private HTTP on port 8000, not TLS**;
+use trusted HTTPS for production. The published prompt version is model-only.
+Its experimental native private-MCP binding returned `tool_user_error` and is
+not enabled; hosted-agent private MCP reads are verified.
+
+[![Private demo network and protocol paths](../../docs/diagrams/apim-litellm-private-demo.svg)](../../docs/diagrams/apim-litellm-private-demo.svg)
+
+[Editable private diagram](../../docs/diagrams/apim-litellm-private-demo.excalidraw),
+[private infrastructure runbook](../../infra/stacks/demo-private-foundry/README.md),
+and [model-backed dual-protocol hosted sample](../../samples/hosted-dual-agent/README.md).
+
+**Measured, not inferred:** all A/B/C profiles passed model inference, both
+agents over A2A, hosted saved-task retrieval, both agent Responses aliases,
+hosted-to-private-MCP Blob reads, key/agent-override denials and a fixed public
+HTTPS denial probe. C used the real encrypted user login. The outside-VNet
+operator request to Foundry returns HTTP 403 while the private path succeeds.
+This is not certification of every possible egress path or cross-user isolation.
+Final validation passed 230 Python tests and 17 subtests (two local native-schema
+checks skipped), six gateway Terraform tests, a zero-change private Foundry plan,
+and live acceptance for all three profiles.
+
+The original `aif-agentgw-xlen9` account is not part of this private profile.
+It remains public-enabled with a private endpoint; do not confuse it with the
+new private-only account.
 
 ```text
 Consumer -> APIM Standard v2 -> LiteLLM OSS on AKS -> approved backend
@@ -308,6 +374,117 @@ demo contains no secrets.
 
 ## Deploy and test this standalone demo
 
+### Private-profile upgrade of the standalone gateway
+
+This is a demo-local sequence, **not Day 0/1 integration and not a
+zero-prerequisite empty-subscription one-liner**. The private Foundry root
+currently expects the standalone APIM/AKS VNet and its private-endpoint subnet.
+Review its inputs/state separately from the main accelerator.
+
+1. Deploy [private Foundry + model + private ACR](../../infra/stacks/demo-private-foundry/README.md).
+   Supply the gateway VNet, a nonoverlapping delegated subnet and required DNS
+   links. Give A/B agent invocation rights, A/B/C model inference rights and the
+   actual delegated user its Foundry runtime role.
+2. Publish the prompt agent using `accelerator.gateway_agents` with
+   `--private-proxy-namespace gateway` from a connected operator environment.
+3. Build/import [the dual-protocol hosted image](../../samples/hosted-dual-agent/README.md)
+   and publish with `python -m accelerator.demo_hosted ... --apply`.
+   It can first be published without MCP to obtain its runtime identity.
+4. Configure the private MCP source subnet/identity allowlists, then deploy the
+   named gateway profiles with `-PrivateDemo`. The renderer creates the internal
+   MCP service when `FOUNDRY_AGENT_SUBNET_CIDR` is supplied. Inspect its actual
+   private IP, then republish the hosted definition with that fixed MCP URL.
+5. Complete C's real user consent/login and run the shipped private acceptance.
+
+For the gateway release, use:
+
+```powershell
+# These are nonsecret deployment values from the private infrastructure and
+# hosted-agent receipts. They do not replace backend token verification.
+$env:FOUNDRY_AGENT_SUBNET_CIDR = "<delegated-agent-subnet-CIDR>"
+$env:MCP_FOUNDRY_CLIENT_IDS = "<hosted-runtime-client-ID>"
+$env:MCP_FOUNDRY_PRINCIPAL_IDS = "<hosted-runtime-principal-ID>"
+
+.\scripts\Deploy-GatewayScenarios.ps1 -PrivateDemo `
+  -VariablesFile .local\apim-litellm.tfvars.json `
+  -FoundryA2AEndpoint "<private-project>/agents/gateway-hosted-dual/endpoint/protocols/a2a" `
+  -DeclarativeA2AEndpoint "<private-project>/agents/gateway-declarative/endpoint/protocols/a2a" `
+  -ModelEndpoint "<private-model-endpoint>" `
+  -IdentityFile .local\apim-litellm\entra-identity-user-consent.json -Apply
+
+.\scripts\Test-GatewayScenarios.ps1 -Live -UseAzd -PrivateDemo `
+  -Scenarios shared-service,dedicated-application,user-obo `
+  -IdentityFile .local\apim-litellm\entra-identity-user-consent.json `
+  -UserTokenCache .local\apim-litellm\user-obo\user-token-cache.bin
+```
+
+The actual agent subnet and hosted identity must be used; do not substitute the
+caller's user identity. The internal LB uses `externalTrafficPolicy: Local` to
+preserve the agent source IP for network policy. No public MCP IP is created.
+The lab's fixed private MCP address is `http://10.240.0.8:8000/mcp`; obtain the
+address from your own service instead of copying that value to another lab.
+
+For a normal consumer with its own virtual key/Entra token:
+
+```powershell
+python -m samples.consume_gateway --endpoint "https://<apim>.azure-api.net/ai" `
+  --kind hosted-agent --agent-name hosted --prompt "Reply exactly PRIVATE_AGENT_OK"
+python -m samples.consume_gateway --endpoint "https://<apim>.azure-api.net/ai" `
+  --kind prompt-agent-responses --prompt "Reply exactly PRIVATE_RESPONSES_OK"
+python -m samples.consume_gateway --endpoint "https://<apim>.azure-api.net/ai" `
+  --kind hosted-agent-responses --prompt "/mcp-read gateway-check.txt"
+```
+
+Use the C suffix/key plus `--identity` and `--user-token-cache` for delegated
+consumer calls. The hosted agent still uses its own runtime identity for its
+internal model and MCP calls. Foundry invocation OBO does not automatically
+propagate into those downstream hops.
+
+Responses endpoint compatibility is explicit: the demo uses dedicated agent
+URLs so A/B need only Agent Consumer, rather than author access to the project
+Responses route. The prompt route must send the agent's real model deployment
+name. A pinned in-process hook preserves `api-version=2025-11-15-preview`
+because this LiteLLM release drops the ordinary `extra_query` value for this
+path. Fixed endpoints, token acquisition/OBO and original-header capture are
+custom in-process integrations; they do not add an intermediary HTTP service.
+Caller `agent_reference` and backend/query overrides are rejected.
+
+### Short setup path: existing Foundry, demo-managed prerequisites
+
+You still need an existing Foundry account/project, preview enablement, model
+quota, operator permissions and network access. The demo now supplies the
+model deployment and hosted-agent deployment steps:
+
+```powershell
+# 1. Deploy the model into an EXISTING model account (Terraform).
+# Omit -Apply first to review the plan. Skip if reusing an existing deployment.
+.\scripts\Deploy-DemoModel.ps1 -SubscriptionId "<subscription>" -TenantId "<tenant>" `
+  -ModelAccountId "<existing-model-account-ARM-ID>" `
+  -ModelEndpoint "https://<account>.openai.azure.com/" -Apply
+
+# 2. Deploy the hosted Echo to an EXISTING Foundry project (azd).
+# Omit -Apply to print the intended target without authentication/writes.
+.\scripts\Deploy-DemoHostedAgent.ps1 -SubscriptionId "<subscription>" `
+  -ProjectId "<existing-Foundry-project-ARM-ID>" `
+  -ProjectEndpoint "https://<account>.services.ai.azure.com/api/projects/<project>" `
+  -Location eastus2 -EnvironmentName my-demo -Apply
+```
+
+The model script writes `.local\demo-foundry-model\<account>\<deployment>\model.json`.
+The hosted script writes `.local\demo-hosted-agent\<environment>\hosted-agent.json`.
+Both are nonsecret receipts; their endpoints/deployment name feed the existing
+gateway wrapper. The model's account and Foundry agent project may be different
+resources. `gpt-4o-mini` must also be available to the declarative agent's project;
+the model prerequisite does not create a cross-account project connection.
+
+See [model prerequisites and ownership](../../infra/stacks/demo-foundry-model/README.md)
+and [hosted deployment plus exact upstream adaptations](../../samples/hosted-a2a-echo/README.md).
+Create the optional declarative agent with the existing
+[publisher](../../accelerator/gateway_agents.py), then use the
+[gateway deployment wrapper](../../scripts/Deploy-GatewayScenarios.ps1) and
+the consent/test commands below. The complete demo is not a zero-prerequisite,
+single unattended command: actual user consent remains interactive.
+
 **Run commands from the repository root**, not this directory. Use the
 [demo deployment runbook](../../docs/gateway-identity-scenarios.md#deployment-sequence)
 and [independent Terraform inputs](../../infra/stacks/apim-litellm/README.md).
@@ -332,6 +509,8 @@ deployment, team onboarding, knowledge provisioning or showback.
 
 | Purpose | Existing entry point |
 |---|---|
+| Deploy model prerequisite in an existing account | [Deploy-DemoModel.ps1](../../scripts/Deploy-DemoModel.ps1) |
+| Deploy hosted Echo in an existing project | [Deploy-DemoHostedAgent.ps1](../../scripts/Deploy-DemoHostedAgent.ps1) |
 | Independent infrastructure/workloads/APIM release | [Deploy-APIMLiteLLM.ps1](../../scripts/Deploy-APIMLiteLLM.ps1) |
 | Deploy named A/B/C profiles | [Deploy-GatewayScenarios.ps1](../../scripts/Deploy-GatewayScenarios.ps1) |
 | Create registrations and store OBO credential | [Initialize-GatewayIdentity.ps1](../../scripts/Initialize-GatewayIdentity.ps1) |
@@ -425,6 +604,9 @@ LiteLLM version. See the [evidence/runbook](../../docs/gateway-identity-scenario
   long token-expiry endurance are not certified.
 * Demo PostgreSQL is single-node, not production HA. Preserve its PVC and
   credentials together. State/caches/receipts under `.local` are not committed.
+* Hosted internal model usage is not complete billing/showback data in the
+  current `TextResponse` wrapper. Do not treat gateway spend records as full
+  accounting for an agent's internal calls.
 * Public test exposure is not the fully private enterprise target. A production
   rollout needs reviewed networking, trusted TLS, private backend reachability,
   credential lifecycle, observability and availability.

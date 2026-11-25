@@ -18,7 +18,7 @@ def install():
         return
     targets = frozenset(
         os.environ[name].rstrip("/")
-        for name in ("FOUNDRY_A2A_URL", "FOUNDRY_DECLARATIVE_A2A_URL")
+        for name in ("FOUNDRY_A2A_URL", "FOUNDRY_DECLARATIVE_A2A_URL", "FOUNDRY_HOSTED_A2A_URL")
         if os.environ.get(name)
     )
 
