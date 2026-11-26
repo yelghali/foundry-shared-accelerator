@@ -32,14 +32,15 @@ source, then to a manual lesson:
 [B: dedicated LiteLLM identity](../../docs/gateway-identity-scenarios.md#tutorial-b-dedicated-litellm-identity),
 [C: signed-in user OBO](../../docs/gateway-identity-scenarios.md#tutorial-c-signed-in-user-through-obo).
 Each lesson has a small flow diagram, setup command, model/MCP calls, four
-agent calls and a separate identity-verification step. Workload identity,
-an MCP sidecar and custom Python inside LiteLLM are explicitly different.
+agent calls and a separate identity-verification step. All profiles now run
+**without auth sidecars**. Workload identity is the token mechanism; A/B's
+missing MCP auth support is supplied by custom Python inside LiteLLM.
 
 ## What this demo shows
 
 ### Current private profile: deployed and tested on 2026-11-25
 
-The gateway release is `20261125g`. The private Foundry account is
+The gateway release is `20261126a`. The private Foundry account is
 `fsapriv1125`, project `private-gateway-demo`; its public network access is
 **Disabled**. The private image registry is `fsapriv1125acr`.
 
@@ -196,7 +197,6 @@ sequenceDiagram
     participant Client as Consumer
     participant APIM as APIM - /ai
     participant GW as LiteLLM - gateway namespace
-    participant Helper as MCP-only loopback helper
     participant Entra as Microsoft Entra ID
     participant Agent as Foundry A2A agent
     participant MCP as FastMCP on AKS
@@ -209,13 +209,11 @@ sequenceDiagram
         GW->>Agent: Direct HTTPS A2A request with service bearer
         Agent-->>GW: Task or agent result
     else MCP tools
-        GW->>Helper: Fixed registered MCP request inside the pod
-        Helper->>Entra: Acquire MCP-audience token using shared gateway WI
-        Entra-->>Helper: Service access token
-        Helper->>MCP: Forward request with service bearer
+        GW->>Entra: Custom in-process Python + Azure SDK, acquire MCP token using pod WI
+        Entra-->>GW: Service access token, cached/renewed by Azure SDK
+        GW->>MCP: Direct request with service bearer
         MCP->>MCP: Validate audience, gateway client and principal allowlists
-        MCP-->>Helper: Tool result
-        Helper-->>GW: Tool result
+        MCP-->>GW: Tool result
     end
     GW-->>APIM: Result
     APIM-->>Client: Result
@@ -223,8 +221,11 @@ sequenceDiagram
 
 * **Models:** use A's WI as in the common model diagram.
 * **Agents:** direct Foundry URLs; native LiteLLM federated authentication.
-* **MCP:** the custom loopback helper is a service-token integration, not
-  LiteLLM-native managed-identity support or a vendor-standard sidecar pattern.
+* **MCP:** [custom Python HTTP auth](mcp_workload.py) inside LiteLLM obtains
+  tokens from a shared expiry-aware Azure SDK workload credential. It wraps
+  the pinned native MCP client constructor for one fixed target only. This
+  is **not native LiteLLM workload-MCP support** and not an LLM pre-call hook.
+  No loopback listener or auth sidecar is deployed.
 * **Consent:** no delegated backend OBO consent is involved. Existing caller
   authentication and Azure RBAC are still required.
 
@@ -387,6 +388,29 @@ and TLS keys remain secrets too; "workload identity" does not mean the whole
 demo contains no secrets.
 
 ## Deploy and test this standalone demo
+
+### Background A2A job demo
+
+The [consumer](../../samples/consume_gateway.py) supports explicit submission
+and polling. Run from the repository root in one PowerShell terminal:
+
+```powershell
+$py = ".\.local\scenario-venv\Scripts\python.exe"
+.\scripts\Import-GatewayConsumerEnv.ps1 -Scenario shared-service -UseAzd
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind hosted-agent --agent-name hosted --background --poll-timeout 180 --prompt "Calculate 17 multiplied by 23. Return only the integer, no explanation."
+```
+
+For B/C load their profile instead, then run the same consumer command.
+For prompt-agent jobs use `--kind declarative-agent` and omit `--agent-name`.
+The script sends `returnImmediately: true`, prints the returned Task ID/state,
+then polls native `GetTask` with `A2A-Version: 1.0` and outputs the completed
+Task JSON. Verify **391** in artifacts. A fast submission may already be
+completed; the script never invents a submitted state. Omit `--background`
+to retain blocking behavior. Timeout/error does not mean server cancellation.
+
+[Step-by-step job protocol and limitations](../../docs/gateway-identity-scenarios.md#background-a2a-jobs-submit-and-poll).
+Private live acceptance now separately verifies background submission,
+Task polling and the exact `BACKGROUND_AGENT_OK` artifact.
 
 ### Private-profile upgrade of the standalone gateway
 

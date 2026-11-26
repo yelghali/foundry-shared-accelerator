@@ -45,10 +45,10 @@
     {"id":"gateway-mcp","type":"arrow","x":1020,"y":210,"width":375,"height":460,"points":[[0,0],[355,0],[355,425],[-20,425],[-20,460]],"strokeColor":"#495057","strokeWidth":2,"endArrowhead":"arrow"},
     {"id":"prompt-note","type":"text","x":60,"y":795,"width":1320,"height":35,"text":"Published prompt version is model-only. Its experimental native private-MCP binding is not enabled or certified.","fontSize":14,"fontFamily":2,"strokeColor":"#000000"},
     {"id":"auth-note","type":"text","x":40,"y":850,"width":1360,"height":40,"text":"A: shared LiteLLM managed identity. B: separate LiteLLM managed identity. C: delegated user for MCP and agents.","fontSize":16,"fontFamily":2,"strokeColor":"#000000"},
-    {"id":"mcp-auth-note","type":"text","x":40,"y":885,"width":1360,"height":35,"text":"A/B MCP: custom sidecar in LiteLLM pod. C MCP: native LiteLLM user OBO; no MCP auth sidecar.","fontSize":14,"fontFamily":2,"strokeColor":"#000000"},
+    {"id":"mcp-auth-note","type":"text","x":40,"y":885,"width":1360,"height":35,"text":"No auth sidecars. A/B MCP: custom Python auth inside LiteLLM. C MCP: native LiteLLM user OBO.","fontSize":14,"fontFamily":2,"strokeColor":"#000000"},
     {"id":"agent-auth-note","type":"text","x":40,"y":920,"width":1360,"height":35,"text":"C agent OBO: our Python inside LiteLLM, not native agent OBO or a sidecar. Agent calls go directly to Foundry.","fontSize":14,"fontFamily":2,"strokeColor":"#000000"},
     {"id":"downstream-note","type":"text","x":40,"y":955,"width":1360,"height":35,"text":"Hosted downstream: runtime identity. Blob: FastMCP identity. Direct model calls: LiteLLM identity.","fontSize":14,"fontFamily":2,"strokeColor":"#000000"},
-    {"id":"limits-note","type":"text","x":40,"y":990,"width":1360,"height":35,"text":"2026-11-25: 12 exact-output calls + full A/B/C acceptance passed. Private MCP TLS and cross-user task isolation remain limitations.","fontSize":14,"fontFamily":2,"strokeColor":"#000000"}
+    {"id":"limits-note","type":"text","x":40,"y":990,"width":1360,"height":35,"text":"2026-11-26: no-sidecar MCP + background A2A jobs verified. Private MCP TLS and cross-user task isolation remain limitations.","fontSize":14,"fontFamily":2,"strokeColor":"#000000"}
   ],
   "appState":{"viewBackgroundColor":"#ffffff","gridSize":20},"files":{}
 }

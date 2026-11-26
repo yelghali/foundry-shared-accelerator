@@ -399,6 +399,39 @@ def verify(
     if saved.get("id") != task_id or canonical_artifacts(saved) != canonical_artifacts(task):
         raise RuntimeError("A2A saved Task differs from the completed Task.")
     checks["a2a"] = {"task_id": task_id, "artifact": expected_artifact, "saved_task_retrieved": True}
+    if private_demo:
+        submitted = rpc("SendMessage", {
+            "message": {"messageId": str(uuid.uuid4()), "role": "ROLE_USER", "parts": [{
+                "text": "Reply exactly BACKGROUND_AGENT_OK",
+            }]},
+            "configuration": {"returnImmediately": True},
+        }, hosted_alias)
+        background_task = submitted.get("task")
+        if not isinstance(background_task, dict) or not background_task.get("id"):
+            raise RuntimeError("Background A2A submission returned no native Task")
+        background_id = background_task["id"]
+        initial_state = background_task.get("status", {}).get("state")
+        deadline = time.monotonic() + 180
+        while True:
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Background A2A Task did not complete")
+            polled = rpc("GetTask", {"id": background_id}, hosted_alias)
+            background_task = polled.get("task", polled)
+            if background_task.get("id") != background_id:
+                raise RuntimeError("Background GetTask returned the wrong Task")
+            state = background_task.get("status", {}).get("state")
+            if state in {"completed", "TASK_STATE_COMPLETED"}:
+                if completed_a2a_text({"task": background_task}) != "BACKGROUND_AGENT_OK":
+                    raise RuntimeError("Background A2A returned an unexpected artifact")
+                break
+            if state not in {"submitted", "working", "TASK_STATE_SUBMITTED", "TASK_STATE_WORKING"}:
+                raise RuntimeError(f"Background A2A failed: {state}")
+            time.sleep(3)
+        checks["a2a_background"] = {
+            "task_id": background_id, "return_immediately": True,
+            "initial_state": initial_state, "final_state": state,
+            "artifact": "BACKGROUND_AGENT_OK", "polled": True,
+        }
     if declarative:
         result = rpc("SendMessage", {
             "message": {"messageId": str(uuid.uuid4()), "role": "ROLE_USER",

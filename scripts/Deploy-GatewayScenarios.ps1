@@ -8,7 +8,7 @@ param(
     [string]$IdentityFile,
     [ValidateSet("shared-service", "dedicated-application", "user-obo")]
     [string[]]$Scenarios = @("shared-service", "dedicated-application", "user-obo"),
-    [string]$ImageTag = "20261125g",
+    [string]$ImageTag = "20261126a",
     [ValidateSet("public", "private")][string]$Exposure = "public",
     [ValidateSet("azurecli", "azd")][string]$KubernetesLoginMethod = "azurecli",
     [switch]$SkipBuild,

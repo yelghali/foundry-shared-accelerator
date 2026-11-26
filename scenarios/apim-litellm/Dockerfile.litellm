@@ -5,7 +5,7 @@ WORKDIR /app/scenario
 COPY --from=uvbin /uv /usr/local/bin/uv
 COPY requirements-gateway.txt .
 RUN uv pip install --python /app/.venv/bin/python --no-cache -r requirements-gateway.txt
-COPY identity.py obo.py adapter.py foundry_a2a.py agent_responses.py request_policy.py config.yaml launch.py ./
+COPY identity.py obo.py mcp_workload.py foundry_a2a.py agent_responses.py request_policy.py config.yaml launch.py ./
 ENV PYTHONPATH=/app/scenario
 EXPOSE 4000
 ENTRYPOINT ["python", "/app/scenario/launch.py"]

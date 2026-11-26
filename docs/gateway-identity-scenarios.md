@@ -21,7 +21,7 @@ credentials does not deploy infrastructure, configure OBO, or call an agent.
 ## Current private profile, 2026-11-25
 
 The demo-owned account `fsapriv1125`, project `private-gateway-demo`, has public
-network access **Disabled**. A/B/C gateways run release `20261125g`. Their model
+network access **Disabled**. A/B/C gateways run release `20261126a`. Their model
 and agent targets now use that private account; the original public-enabled
 `aif-agentgw-xlen9` account remains separate.
 
@@ -52,6 +52,18 @@ Use the [private-profile setup and consumer commands](../scenarios/apim-litellm/
 and [private Foundry infrastructure](../infra/stacks/demo-private-foundry/README.md).
 Add **`-PrivateDemo`** when testing the current deployment; legacy mode below
 expects the deterministic `echo` alias and remains available for older labs.
+
+**2026-11-26 update: no authentication sidecars in any profile.** A/B MCP
+token acquisition now runs as custom Python **inside LiteLLM**; it uses the
+same managed identity and direct FastMCP destination. C keeps native MCP user
+OBO. This is container simplification, **not new native LiteLLM workload-MCP
+support**. See [the implementation](../scenarios/apim-litellm/mcp_workload.py)
+and [background submission/polling demo](#background-a2a-jobs-submit-and-poll).
+Older dated results below describe the previous sidecar deployment explicitly.
+This update passed **176 focused tests and 12 subtests**, with two existing
+native-schema skips, plus full live A/B/C acceptance and all six manual
+background CLI combinations. The repository-wide counts above are the earlier
+baseline run, not a new full-suite claim.
 
 ## Hands-on lab: test prompt and hosted agents through both APIs
 
@@ -101,7 +113,7 @@ current terminal. It does not invoke an MCP tool or either agent. Loading B
 and then C in the same terminal selects **C only** for subsequent calls; it
 does not run both scenarios. Execute a consumer command below after loading.
 
-### 2. Run all four combinations
+### 2. Run each scenario manually
 
 Each lesson contains **six independent calls**: a direct model, MCP discovery,
 and four agent combinations. Execute commands one by one and inspect each
@@ -116,11 +128,11 @@ agent sees the shared LiteLLM managed identity, not your personal identity.
 ```text
 Caller -> APIM /ai -> LiteLLM pod A (shared managed identity)
                        |-> model directly
-                       |-> MCP-only sidecar -> FastMCP
+                       |-> FastMCP directly [custom in-process workload auth]
                        `-> prompt/hosted agent directly (A2A or Responses)
 ```
 
-Read the [A model configuration][src-model], [MCP sidecar][src-adapter] and
+Read the [A model configuration][src-model], [MCP workload integration][src-mcp-workload] and
 [native agent A2A configuration][src-a2a-config] alongside the calls:
 
 ```powershell
@@ -158,7 +170,7 @@ incoming application's identity.
 App-alpha caller -> APIM /ai-dedicated-application
                     -> LiteLLM pod B (B's managed identity)
                          |-> model directly
-                         |-> MCP-only sidecar -> FastMCP
+                         |-> FastMCP directly [custom in-process workload auth]
                          `-> prompt/hosted agents directly
 ```
 
@@ -247,6 +259,73 @@ $env:GATEWAY_ENDPOINT   # Expected suffix: /ai-user-obo
 * Missing consent, expired credentials or HTTP/JSON-RPC errors are failures;
   never count an echoed input or HTTP 200 alone as success.
 
+### Background A2A jobs: submit and poll
+
+The [consumer sample](../samples/consume_gateway.py) now supports a real job
+demo. First load **one** scenario, then run either agent command:
+
+```powershell
+$py = ".\.local\scenario-venv\Scripts\python.exe"
+
+# Choose ONE; changing profile replaces the current terminal credentials.
+.\scripts\Import-GatewayConsumerEnv.ps1 -Scenario shared-service -UseAzd
+# .\scripts\Import-GatewayConsumerEnv.ps1 -Scenario dedicated-application -UseAzd
+# .\scripts\Import-GatewayConsumerEnv.ps1 -Scenario user-obo
+
+# Hosted agent: background submission, then explicit GetTask polling
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind hosted-agent --agent-name hosted --background --poll-timeout 180 --prompt "Calculate 17 multiplied by 23. Return only the integer, no explanation."
+
+# Prompt agent: same background/polling workflow
+& $py -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind declarative-agent --background --poll-timeout 180 --prompt "Calculate 17 multiplied by 23. Return only the integer, no explanation."
+```
+
+What the sample actually does:
+
+1. POST `SendMessage` with `configuration.returnImmediately: true`.
+2. Print the actual submitted Task ID/state to stderr. Fast jobs may already
+   be completed; a submitted state is not fabricated.
+3. POST `GetTask` with that ID until completed, with a bounded polling deadline.
+4. Print the final Task envelope as JSON on stdout; the expected answer **391**
+   must be in artifacts, not merely user history.
+
+Every request uses `A2A-Version: 1.0`. Errors, terminal non-success states,
+wrong Task IDs and timeouts fail explicitly. The Python HTTP client is
+synchronous; **the agent job** is background because submission and result
+retrieval are separate operations. Omit `--background` for the unchanged
+blocking workflow. The polling timeout starts after submission and does not
+cancel the server job. Submission itself can take seconds.
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"SendMessage","params":{"message":{"messageId":"<uuid>","role":"ROLE_USER","parts":[{"text":"Calculate 17 multiplied by 23. Return only the integer, no explanation."}]},"configuration":{"returnImmediately":true}}}
+```
+
+Followed by (same endpoint/credentials/version header):
+
+```json
+{"jsonrpc":"2.0","id":2,"method":"GetTask","params":{"id":"<actual-submitted-task-id>"}}
+```
+
+The second JSON example is equivalent to:
+
+```python
+lookup = {
+    "jsonrpc": "2.0", "id": 2, "method": "GetTask",
+    "params": {"id": task_id},
+}
+```
+
+Native v1.0 is essential: our direct Foundry probes reproduced
+`HostedAgentNotSupported` / `-32099` for GetTask without the version header
+or with v0.3. Native background send/poll worked directly and through
+APIM/LiteLLM. The pinned LiteLLM still needs the in-process `GetTask`
+compatibility patch; the customer's incoming header alone cannot guarantee
+LiteLLM forwards the same version/method.
+
+The private live verifier now includes a separate `a2a_background` receipt:
+actual initial state, polled Task ID, completed state and exact
+`BACKGROUND_AGENT_OK` artifact. Cancellation, crash durability and cross-user
+job isolation are not certified by this test.
+
 #### Tutorial verification: beyond a successful answer
 
 The [consumer sample][src-consumer] is an invocation example, not an identity
@@ -304,7 +383,9 @@ equality, both agents over Responses/A2A, hosted private MCP access/public
 HTTPS denial, and key/backend-override denials. A/B foreign-profile keys were
 also rejected. Cross-user task isolation is still not certified.
 
-The live AKS pod inspection confirmed:
+The **2026-11-25** AKS pod inspection confirmed the previous release below.
+Release `20261126a` removes `identity-adapter` from A/B; all LiteLLM pods now
+contain only the `litellm` container:
 
 | Profile | Actual containers in the LiteLLM pod | Workload identity |
 |---|---|---|
@@ -312,9 +393,18 @@ The live AKS pod inspection confirmed:
 | B | `litellm`, `identity-adapter` | Matches B's distinct Terraform managed identity |
 | C | `litellm` only | Matches C's Terraform managed identity; delegated requests still use user OBO |
 
+The new no-sidecar release also passed full A/B/C live acceptance, including
+the new background hosted Task check (`TASK_STATE_SUBMITTED` ->
+`TASK_STATE_COMPLETED`, exact `BACKGROUND_AGENT_OK` artifact). The CLI job demo
+passed for **both** agents in A/B/C: six real background submissions and
+GetTask retrievals returned **391** in completed artifacts. This is measured
+behavior, not a claim about crash durability, cancellation or user isolation.
+
 Local run receipts (not committed) are
 `.local/apim-litellm/agent-manual-verification-20261125.json` and
 `.local/apim-litellm/<scenario>/acceptance-20261125-identity-clarification.json`.
+Current no-sidecar/background acceptance is recorded separately in
+`.local/apim-litellm/<scenario>/acceptance-no-sidecar-background.json`.
 No mocked response or LLM-generated self-identification was used for these
 checks. Successful A2A output does not independently attest a hosting resource;
 the protocol evidence and that limitation remain distinct.
@@ -530,17 +620,18 @@ A2A and Responses; the linked files distinguish the two protocols.
 | Scenario / call | Identity and implementation | Exact repository code/config on GitHub | Reproduce |
 |---|---|---|---|
 | **A / model** | Shared LiteLLM managed identity; native Azure model provider | [Model YAML][src-model], [shared identity + federation][src-shared-identity], [pod binding][src-pod-binding] | [Tutorial A](#tutorial-a-shared-litellm-identity) |
-| **A / MCP** | Same managed identity; custom MCP-only sidecar | [Loopback MCP YAML][src-mcp-config], [sidecar token acquisition/forwarding][src-adapter], [workload credential][src-workload-credential] | [Tutorial A](#tutorial-a-shared-litellm-identity) |
+| **A / MCP** | Same managed identity; custom Python inside LiteLLM, no sidecar | [Workload token/HTTP auth integration][src-mcp-workload], [direct MCP configuration][src-current-render], [workload credential][src-workload-credential] | [Tutorial A](#tutorial-a-shared-litellm-identity) |
 | **A / agents** | Same managed identity; native A2A auth, custom Responses auth inside LiteLLM | [A2A auth YAML][src-a2a-config], [private agent/Responses rendering][src-agent-render], [Responses token hook][src-responses-auth] | [Tutorial A](#tutorial-a-shared-litellm-identity) |
 | **B / model** | Separate app-alpha LiteLLM managed identity; same model-provider code | [Dedicated identity/federation/RBAC][src-profile-identities], [model YAML][src-model], [pod binding][src-pod-binding] | [Tutorial B](#tutorial-b-dedicated-litellm-identity) |
-| **B / MCP** | B's managed identity; same MCP-sidecar code as A | [Dedicated identity][src-profile-identities], [sidecar][src-adapter], [actual container selection][src-pod-layout] | [Tutorial B](#tutorial-b-dedicated-litellm-identity) |
+| **B / MCP** | B's managed identity; same in-process code as A, no sidecar | [Dedicated identity][src-profile-identities], [workload auth][src-mcp-workload], [single-container rendering][src-current-render] | [Tutorial B](#tutorial-b-dedicated-litellm-identity) |
 | **B / agents** | B's managed identity; native A2A auth, custom Responses auth inside LiteLLM | [Dedicated identity + agent RBAC][src-profile-identities], [A2A YAML][src-a2a-config], [Responses hook][src-responses-auth] | [Tutorial B](#tutorial-b-dedicated-litellm-identity) |
 | **C / model** | C pod's managed identity; **not model OBO** | [Model YAML][src-model], [C identity + model RBAC][src-profile-identities] | [Tutorial C](#tutorial-c-signed-in-user-through-obo) |
 | **C / MCP** | Delegated user; **native LiteLLM MCP OBO**, no auth sidecar | [Generated `entra_obo` YAML][src-native-mcp-obo], [secret-resolution helper][src-mcp-secret], [MCP `whoami` evidence][src-mcp-whoami] | [Tutorial C](#tutorial-c-signed-in-user-through-obo) |
 | **C / agents** | Delegated user; **custom Python inside LiteLLM**, no agent sidecar | [A2A OBO hook][src-a2a-obo], [Responses OBO hook][src-responses-auth], [user validation + Entra exchange][src-obo-exchange] | [Tutorial C](#tutorial-c-signed-in-user-through-obo) |
 
-These source links are pinned to **live-tested code commit `f8b40c9`** so line
-numbers remain reproducible. The linked implementation is demo code, not a
+Unchanged baseline source links are pinned to **live-tested code commit
+`f8b40c9`** so line numbers remain reproducible. New workload-MCP and current
+rendering links follow this feature branch. The linked implementation is demo code, not a
 claim that every capability is native LiteLLM. The
 [consumer][src-consumer], [credential loader][src-loader] and
 [identity/denial verifier][src-verifier] are shared by all profiles.
@@ -552,23 +643,18 @@ not show C's generated OBO configuration. Operator-generated manifests are
 under `.local/apim-litellm/<scenario>/workloads.json`; do not commit local
 deployment files or credentials.
 
-**Why does `adapter.py` still mention A2A?** It retains legacy branches for
-older labs. The current [adapter environment][src-adapter-env] configures only
-the MCP target, while the [agent renderer][src-agent-render] registers direct
-Foundry URLs in LiteLLM. Those old adapter branches are not the current
-agent request path. Use the private-profile commands above, not legacy Echo
-deployment examples later in the operator reference.
+**Why does `adapter.py` still exist?** It is retained as legacy reference with
+its old tests. It is no longer copied into the gateway image or deployed in
+a sidecar. Current MCP and agent requests go directly from LiteLLM to their
+fixed backends. Use the private-profile commands, not legacy Echo examples.
 
 [src-model]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/config.yaml#L1-L8
-[src-mcp-config]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/config.yaml#L17-L22
 [src-a2a-config]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/config.yaml#L23-L46
 [src-shared-identity]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/infra/stacks/apim-litellm/main.tf#L162-L185
 [src-profile-identities]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/infra/stacks/apim-litellm/identity-profiles.tf#L19-L80
 [src-pod-binding]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/render.py#L165-L175
-[src-adapter]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/adapter.py#L65-L117
-[src-adapter-env]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/render.py#L68-L73
 [src-workload-credential]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/identity.py#L100-L110
-[src-pod-layout]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/render.py#L220-L242
+[src-pod-layout]: https://github.com/yelghali/foundry-shared-accelerator/blob/feat/gateway-user-consent/scenarios/apim-litellm/render.py
 [src-agent-render]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/render.py#L134-L161
 [src-responses-auth]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/agent_responses.py#L42-L65
 [src-native-mcp-obo]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/render.py#L86-L132
@@ -580,6 +666,8 @@ deployment examples later in the operator reference.
 [src-loader]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scripts/Import-GatewayConsumerEnv.ps1
 [src-verifier]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/accelerator/apim_litellm.py#L197-L442
 [src-policy-callback]: https://github.com/yelghali/foundry-shared-accelerator/blob/f8b40c9263fa002cd138c44f0fc317e35bca0239/scenarios/apim-litellm/request_policy.py#L117-L145
+[src-mcp-workload]: https://github.com/yelghali/foundry-shared-accelerator/blob/feat/gateway-user-consent/scenarios/apim-litellm/mcp_workload.py
+[src-current-render]: https://github.com/yelghali/foundry-shared-accelerator/blob/feat/gateway-user-consent/scenarios/apim-litellm/render.py
 
 **Every path is Consumer -> APIM -> LiteLLM OSS -> backend.** APIM exposes APIs
 and validates the caller token. LiteLLM is the AI gateway: native virtual keys,
@@ -687,9 +775,8 @@ Separate **who authenticates** from **where the code runs**:
 
 * **Workload identity** is how an AKS pod obtains tokens as an Azure managed
   identity without a client secret. It is not a container or sidecar.
-* **Sidecar / adapter** is a separate container in the same pod. A/B have a
-  custom MCP-only `identity-adapter` container that obtains service tokens
-  and forwards MCP calls.
+* **Sidecar / adapter** is a separate container in the same pod. The previous
+  A/B release used one for MCP. **The current release deploys none.**
 * **In-process Python / hook** is our custom Python running inside the
   LiteLLM container and Python process. It is not another container/service.
   Agent OBO is custom integration, not a native LiteLLM agent-OBO feature.
@@ -740,22 +827,23 @@ after reading the pinned API, the probe normalized the result with
 `model_dump(by_alias=True)` and completed all identity/Blob assertions.
 Neither probe establishes automatic native workload-token renewal.
 
-**Decision:** retain the working A/B MCP sidecar for secretless managed-identity
-authentication. Replacing it with an in-process Python token provider would
-remove a container, but would still be **custom code**, not native-only
+**Implemented follow-up:** the A/B MCP sidecar has now been replaced by
+[an in-process workload-auth module](../scenarios/apim-litellm/mcp_workload.py).
+This removes a container but remains **custom code**, not native-only
 LiteLLM. A static copied token would expire and is not an acceptable replacement.
 C already uses native MCP user OBO without the sidecar; switching A/B to that
 would change the authentication scenario. Native MCP client-secret OAuth is
 another different credential model, not secretless workload identity.
 
-No gateway image, deployment, identity, network policy or consumer route was
-changed by this investigation. This conclusion is scoped to the deployed
+The initial investigation changed no deployment. Its subsequent implementation
+updates the gateway image/configuration and native MCP object grants, retaining
+identities and network policy. This conclusion is scoped to the deployed
 version and inspected paths, not a claim about every LiteLLM release.
 See the official [native MCP authentication matrix](https://docs.litellm.ai/docs/mcp_config_reference#upstream-auth-matrix).
 
 | Call / component | A and B | C |
 |---|---|---|
-| MCP service-token authentication | **Custom sidecar container** in the LiteLLM pod; same pod workload identity | Not used; **no adapter sidecar** in C's LiteLLM pod |
+| MCP service-token authentication | **Custom Python inside LiteLLM**; shared expiry-aware Azure SDK credential, direct FastMCP URL | Not used; C keeps native user OBO |
 | MCP user OBO | Not used | **Native LiteLLM MCP OBO feature**, inside LiteLLM; YAML selects `oauth2_token_exchange` + `entra_obo` |
 | Agent A2A authentication | **Native LiteLLM** workload federation, inside LiteLLM | **Our custom Python inside the LiteLLM process** validates/exchanges the user token and supplies the backend bearer |
 | Agent Responses authentication | **Our custom Python inside LiteLLM** obtains a workload-identity token for fixed agent endpoints | **Our custom Python inside LiteLLM** obtains a delegated user token for those endpoints |
@@ -771,17 +859,43 @@ testing on upgrades; it is not represented as vendor-supported native agent OBO.
 C's MCP token exchange is native LiteLLM; a small custom startup helper only
 resolves the CSI-delivered secret into the pinned release's OAuth fields.
 
+A/B MCP's `mcp_workload:install` startup function wraps the pinned native
+`MCPClient` constructor to attach HTTP auth only to the exact deployment-owned
+FastMCP URL. The auth handler calls the long-lived Azure SDK credential on
+each HTTP request; the SDK caches and renews tokens based on expiry. Token
+failure is logged and propagated, never replaced with an anonymous/static
+credential. Other destinations are untouched; C's native OBO is untouched.
+This constructor wrapper is a **version-pinned custom integration**, not a
+documented generic LLM pre-call hook or native workload-MCP feature.
+
+**Upgrade/reproduce:** use the normal workload deployment scripts with release
+`20261126a` (now their default), not just an old image with a new YAML file.
+They render the direct MCP URL, deploy a single LiteLLM container and reconcile
+native consumer-key permissions. The direct URL changes LiteLLM's MCP server
+object ID: existing keys must receive the new object grant. Manual operators
+can reconcile without printing keys:
+
+```powershell
+& $py -m accelerator.gateway_keys keys --scenario shared-service --agent-responses
+& $py -m accelerator.gateway_keys keys --scenario dedicated-application --agent-responses
+& $py -m accelerator.gateway_keys keys --scenario user-obo --agent-responses
+```
+
+These are operator commands requiring the intended kubeconfig/tools. Do not
+replace reconciliation by granting all MCP servers. The canary initially
+returned an explicit key-permission 403 until its new object grant was
+reconciled; full acceptance passed after that required migration step.
+
 ```text
 A/B LiteLLM pod                         C LiteLLM pod
 + LiteLLM container                     + LiteLLM container
   - native A2A workload auth              - native MCP user OBO
   - custom Responses workload auth        - custom A2A/Responses user OBO
+  - custom MCP workload HTTP auth
   - custom GetTask compatibility          - custom GetTask compatibility
-+ MCP auth sidecar container             (no MCP auth sidecar container)
-  - MCP only; pod's managed identity
 
-Agent traffic: LiteLLM -> Foundry directly in every profile.
-The A/B MCP sidecar never handles agent requests.
+No auth sidecars. MCP: LiteLLM -> FastMCP directly in every profile.
+Agents: LiteLLM -> Foundry directly in every profile.
 ```
 
 Reference: [LiteLLM MCP OBO Auth: Microsoft Entra ID](https://docs.litellm.ai/docs/mcp_obo_auth#microsoft-entra-id-azure-ad).
@@ -879,7 +993,7 @@ separate. These profiles use conventional **APIM Standard v2** and AKS.
 
 ### Current deployment and consent options
 
-The three profiles are deployed in East US 2 using gateway release `20261125g`:
+The three profiles are deployed in East US 2 using gateway release `20261126a`:
 
 * `https://fsa-lit1120-apim.azure-api.net/ai`
 * `https://fsa-lit1120-apim.azure-api.net/ai-dedicated-application`
@@ -1079,9 +1193,9 @@ The lab's consented single-user C invocation passed for both agents and MCP.
 Fresh users/deployments still need actual consent/login and may require
 administrator approval under their tenant policy.
 
-The loopback HTTP adapter is retained **only for A/B service-identity MCP**;
-it has no configured Foundry targets. C uses native MCP OBO plus the in-process
-agent integration, so its LiteLLM pod no longer contains an adapter container.
+The legacy HTTP adapter is not deployed or packaged in the gateway image.
+A/B use custom in-process workload-MCP authentication; C uses native MCP OBO
+plus the in-process agent integration. No LiteLLM pod has an auth sidecar.
 
 ### MCP data access is explicit
 

@@ -28,7 +28,7 @@ def diagnostic(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
 
 
-def post_request(url: str, *, headers: dict[str, str], json: dict, timeout: int) -> requests.Response:
+def post_request(url: str, *, headers: dict[str, str], json: dict, timeout: int | float) -> requests.Response:
     started = time.perf_counter()
     try:
         response = requests.post(url, headers=headers, json=json, timeout=timeout)
@@ -110,7 +110,6 @@ def report_agent(payload: dict, alias: str, protocol: str) -> None:
             artifact_ids = [artifact["artifactId"] for artifact in task.get("artifacts", [])
                             if isinstance(artifact, dict) and artifact.get("artifactId")]
             diagnostic(f"A2A artifact IDs (server): {artifact_ids}")
-            diagnostic("GetTask is not performed by this consumer; use the live acceptance script for saved-task proof.")
         else:
             diagnostic("A2A result is not a Task envelope; inspect the unchanged JSON result.")
     else:
@@ -129,9 +128,15 @@ def main() -> None:
     parser.add_argument("--prompt", default="Reply exactly HELLO")
     parser.add_argument("--identity")
     parser.add_argument("--user-token-cache")
+    parser.add_argument("--background", action="store_true", help="A2A: submit returnImmediately=true, then poll GetTask.")
+    parser.add_argument("--poll-timeout", type=int, default=180, help="Maximum A2A polling seconds after submission.")
     args = parser.parse_args()
     if args.agent_name and args.kind != "hosted-agent":
         raise ValueError("--agent-name applies only to --kind hosted-agent")
+    if args.background and args.kind not in {"hosted-agent", "declarative-agent"}:
+        parser.error("--background applies only to A2A agent calls")
+    if args.poll_timeout <= 0:
+        parser.error("--poll-timeout must be positive")
     parsed = urlsplit(args.endpoint)
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
         raise ValueError("Provide an HTTPS APIM base URL without credentials, query or fragment.")
@@ -191,11 +196,42 @@ def main() -> None:
         url, headers={**headers, "A2A-Version": "1.0"},
         json={"jsonrpc": "2.0", "id": 1, "method": "SendMessage", "params": {
             "message": {"messageId": message_id, "role": "ROLE_USER", "parts": [{"text": args.prompt}]},
-            "configuration": {"returnImmediately": False},
+            "configuration": {"returnImmediately": args.background},
         }},
         timeout=240,
     )
     payload = parse_rpc_response(response, 1)
+    if args.background:
+        task = payload.get("task")
+        if not isinstance(task, dict) or not task.get("id"):
+            raise RuntimeError("Background A2A submission returned no Task ID")
+        task_id = task["id"]
+        diagnostic(f"Background submitted: task={task_id}; state={task.get('status', {}).get('state')}")
+        deadline = time.monotonic() + args.poll_timeout
+        request_id = 1
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(f"Background Task {task_id} did not complete before the polling deadline")
+            request_id += 1
+            diagnostic(f"POST {url} [A2A GetTask; A2A-Version: 1.0; task={task_id}]")
+            response = post_request(
+                url, headers={**headers, "A2A-Version": "1.0"},
+                json={"jsonrpc": "2.0", "id": request_id, "method": "GetTask", "params": {"id": task_id}},
+                timeout=max(1, min(60, remaining)),
+            )
+            result = parse_rpc_response(response, request_id)
+            task = result.get("task", result)
+            if task.get("id") != task_id:
+                raise RuntimeError("GetTask returned a different Task ID")
+            state = task.get("status", {}).get("state")
+            diagnostic(f"Background poll: task={task_id}; state={state}")
+            if state in {"completed", "TASK_STATE_COMPLETED"}:
+                payload = {"task": task}
+                break
+            if state not in {"submitted", "working", "TASK_STATE_SUBMITTED", "TASK_STATE_WORKING"}:
+                raise RuntimeError(f"Background Task stopped without completion: {state}")
+            time.sleep(min(3, max(0, deadline - time.monotonic())))
     report_agent(payload, agent, "A2A")
     print(json.dumps(payload, indent=2))
 

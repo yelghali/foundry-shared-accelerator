@@ -130,12 +130,13 @@ def test_profile_rendering(environment, monkeypatch, scenario, namespace, instan
     assert env["LITELLM_MASTER_KEY"]["valueFrom"]["secretKeyRef"] == {
         "name": "litellm-auth", "key": "master-key",
     }
-    if adapters:
-        adapter_env = {i["name"]: i["value"] for i in adapters[0]["env"]}
-        assert adapter_env["FASTMCP_URL"] == f"http://fastmcp.{namespace}.svc.cluster.local:8000/mcp"
-        assert "FOUNDRY_A2A_URL" not in adapter_env
+    assert not adapters
+    assert env["FASTMCP_URL"]["value"] == f"http://fastmcp.{namespace}.svc.cluster.local:8000/mcp"
+    if scenario != "user-obo":
+        assert "mcp_workload:install" in env["LITELLM_WORKER_STARTUP_HOOKS"]["value"]
     config = yaml.safe_load(resources["ConfigMap", f"{instance}-config"]["data"]["config.yaml"])
     assert not config["mcp_servers"]["blob"]["allow_all_keys"]
+    assert config["mcp_servers"]["blob"]["url"] == f"http://fastmcp.{namespace}.svc.cluster.local:8000/mcp"
     agent = config["agents"][0]
     assert agent["agent_card_params"]["url"] == "https://foundry.example/agents/echo/endpoint/protocols/a2a"
     assert agent["litellm_params"]["agent_card_path"] == "agentCard/v1.0"

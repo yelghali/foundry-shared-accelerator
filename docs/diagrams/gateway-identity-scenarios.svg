@@ -41,10 +41,10 @@
   <path class="line" d="M940 195H1020"/>
 
   <rect x="630" y="330" width="310" height="100" rx="12" fill="#E8DAEF" stroke="#5C2D91" stroke-width="2"/>
-  <text x="650" y="360" class="heading">MCP auth sidecar (A/B)</text>
-  <text x="650" y="388" class="body">Same LiteLLM pod; managed identity</text>
-  <text x="650" y="413" class="body">No agent traffic; C has no sidecar</text>
-  <text x="630" y="458" class="small">C: MCP OBO is native; agent OBO is our Python in LiteLLM, not another container.</text>
+  <text x="650" y="360" class="heading">Python INSIDE LiteLLM (A/B)</text>
+  <text x="650" y="388" class="body">MCP auth + cached Azure credential</text>
+  <text x="650" y="413" class="body">Not another container or HTTP hop</text>
+  <text x="630" y="458" class="small">NO AUTH SIDECARS. C: native MCP OBO. Agent OBO: custom Python inside LiteLLM.</text>
   <rect x="1020" y="330" width="350" height="100" rx="12" fill="#DFF6DD" stroke="#107C10" stroke-width="2"/>
   <text x="1040" y="360" class="heading">FastMCP on AKS</text>
   <text x="1040" y="388" class="body">Checks service or delegated identity</text>
@@ -99,6 +99,6 @@
   <text x="55" y="906" class="body">C  user-obo</text>
   <text x="360" y="906" class="body">MCP: native user OBO | Agents: custom Python user OBO</text>
   <text x="1110" y="906" class="body">Delegated calls passed</text>
-  <text x="55" y="932" class="small">2026-11-25: 12 exact-output calls verified. Cross-user task isolation remains unverified.</text>
+  <text x="55" y="932" class="small">2026-11-26: no-sidecar MCP + background A2A verified. Cross-user task isolation remains unverified.</text>
   <text x="35" y="985" class="small">Workload identity = pod token mechanism, not a sidecar. Hosted downstream calls use its runtime identity; Blob uses FastMCP identity.</text>
 </svg>

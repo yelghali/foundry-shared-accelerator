@@ -5,7 +5,7 @@ param(
     [string]$FoundryA2AEndpoint,
     [string]$ModelEndpoint,
     [string]$ModelDeployment = "gpt-4o-mini",
-    [string]$ImageTag = "20261125g",
+    [string]$ImageTag = "20261126a",
     [ValidateSet("shared-service", "dedicated-application", "user-obo")][string]$Scenario = "shared-service",
     [string]$IdentityFile,
     [string]$ScenarioVariablesFile,

@@ -16,7 +16,7 @@ general_settings:
   disable_spend_logs: true
 mcp_servers:
   blob:
-    url: http://127.0.0.1:4001/mcp
+    url: os.environ/FASTMCP_URL
     transport: http
     allow_all_keys: false
 agents:

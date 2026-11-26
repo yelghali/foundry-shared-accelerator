@@ -102,6 +102,7 @@ try {
         $identityDescription = if ($Scenario -eq "shared-service") { "shared gateway" } else { "dedicated app-alpha gateway" }
         Write-Host "MCP and agent calls use the $identityDescription workload identity, not user OBO."
     }
+    Write-Host "Release 20261126a: no auth sidecar. A/B MCP auth is custom Python inside LiteLLM; C MCP uses native OBO."
     Write-Host ('Next (from repository root): & "' + $PythonExecutable + '" -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind hosted-agent --agent-name hosted')
 }
 finally {

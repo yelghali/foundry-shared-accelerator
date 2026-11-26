@@ -53,6 +53,7 @@ def render():
     common = {"TENANT_ID": tenant, "AUTHENTICATION_SCENARIO": scenario}
     gateway_env = {
         **common,
+        "GATEWAY_NAMESPACE": namespace,
         "MODEL_ALIAS": os.environ.get("MODEL_ALIAS", "enterprise-chat"),
         "AZURE_MODEL": os.environ.get("AZURE_MODEL", "azure/gpt-4o-mini"),
         "AZURE_API_BASE": required("AZURE_API_BASE"),
@@ -64,11 +65,10 @@ def render():
     }
     if os.environ.get("PROXY_BASE_URL", "").strip():
         gateway_env["PROXY_BASE_URL"] = required("PROXY_BASE_URL")
-    adapter_env = {
-        **common,
+    gateway_env.update({
         "FASTMCP_URL": f"http://fastmcp.{namespace}.svc.cluster.local:8000/mcp",
         "MCP_TOKEN_SCOPE": required("MCP_TOKEN_SCOPE"),
-    }
+    })
     mcp_env = {
         **common,
         "MCP_TOKEN_AUDIENCE": required("MCP_TOKEN_AUDIENCE"),
@@ -110,9 +110,10 @@ def render():
             "    client_secret: os.environ/OBO_CLIENT_SECRET\n"
             f"    scopes: [{json.dumps(required('MCP_TOKEN_SCOPE'))}]",
         )
-        config = config.replace("http://127.0.0.1:4001/mcp",
-                                f"http://fastmcp.{namespace}.svc.cluster.local:8000/mcp")
+    else:
+        gateway_env["LITELLM_WORKER_STARTUP_HOOKS"] += ",mcp_workload:install"
     settings = yaml.safe_load(config)
+    settings["mcp_servers"]["blob"]["url"] = gateway_env["FASTMCP_URL"]
     agents = []
     for agent in settings["agents"]:
         variable = agent["agent_card_params"]["url"].removeprefix("os.environ/")
@@ -209,15 +210,13 @@ def render():
         "httpGet": {"path": "/health/liveness", "port": 4000, "scheme": "HTTPS"},
         "failureThreshold": 60, "periodSeconds": 10,
     }
-    adapter = container("identity-adapter", gateway_image, 4001, adapter_env)
-    adapter["command"] = ["python", "-m", "uvicorn", "adapter:app", "--host", "127.0.0.1", "--port", "4001"]
     if scenario == "user-obo":
         gateway["volumeMounts"].append({
             "name": "obo-secret", "mountPath": "/mnt/secrets-store", "readOnly": True,
         })
     mcp = container("fastmcp", required("FASTMCP_IMAGE"), 8000, mcp_env)
     mcp["readinessProbe"] = {"tcpSocket": {"port": 8000}, "initialDelaySeconds": 5}
-    gateway_containers = [gateway] if scenario == "user-obo" else [gateway, adapter]
+    gateway_containers = [gateway]
     for name, containers in [(instance, gateway_containers), ("fastmcp", [mcp])]:
         spec = {"serviceAccountName": service_account if name == instance else name,
                 "enableServiceLinks": False, "containers": containers}

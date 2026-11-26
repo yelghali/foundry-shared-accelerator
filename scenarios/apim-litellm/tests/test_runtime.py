@@ -101,11 +101,10 @@ def test_render_tls_and_private_mcp(modules, monkeypatch, exposure):
         assert ("Service", "litellm-internal") not in resources
     assert resources["Service", "fastmcp"]["spec"].get("type", "ClusterIP") == "ClusterIP"
     spec = resources["Deployment", "litellm"]["spec"]["template"]["spec"]
-    gateway, adapter = spec["containers"]
+    gateway, = spec["containers"]
     assert gateway["ports"] == [{"containerPort": 4000}]
     assert {"name": "PROXY_BASE_URL", "value": "https://gateway.example/ai"} in gateway["env"]
     assert {"name": "KEEPALIVE_TIMEOUT", "value": "300"} in gateway["env"]
-    assert not any(item["name"] == "KEEPALIVE_TIMEOUT" for item in adapter["env"])
     mcp_container = resources["Deployment", "fastmcp"]["spec"]["template"]["spec"]["containers"][0]
     assert not any(item["name"] == "KEEPALIVE_TIMEOUT" for item in mcp_container["env"])
     assert gateway["args"][-4:] == [
@@ -113,7 +112,6 @@ def test_render_tls_and_private_mcp(modules, monkeypatch, exposure):
     ]
     assert gateway["readinessProbe"]["httpGet"]["scheme"] == "HTTPS"
     assert {"name": "tls", "secret": {"secretName": "gateway-tls"}} in spec["volumes"]
-    assert adapter["command"][-3:] == ["127.0.0.1", "--port", "4001"]
     assert spec["serviceAccountName"] == "litellm"
     for name in ("litellm", "fastmcp"):
         assert resources["Deployment", name]["spec"]["template"]["spec"]["enableServiceLinks"] is False

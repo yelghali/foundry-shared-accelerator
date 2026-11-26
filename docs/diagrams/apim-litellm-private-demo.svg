@@ -79,8 +79,8 @@
   <text x="60" y="820" class="small">Published prompt version is model-only. Its experimental native private-MCP binding is not enabled or certified.</text>
 
   <text x="40" y="875" class="body">A: shared LiteLLM managed identity. B: separate LiteLLM managed identity. C: delegated user for MCP and agent invocation.</text>
-  <text x="40" y="905" class="body">A/B MCP: custom sidecar in LiteLLM pod. C MCP: native LiteLLM user OBO; no MCP auth sidecar.</text>
+  <text x="40" y="905" class="body">No auth sidecars. A/B MCP: custom Python auth inside LiteLLM. C MCP: native LiteLLM user OBO.</text>
   <text x="40" y="935" class="body">C agent OBO: our Python inside LiteLLM, not native agent OBO or a sidecar. All agent calls go directly to Foundry.</text>
   <text x="40" y="965" class="body">Hosted downstream model/MCP: hosted runtime identity. Blob: FastMCP identity. Direct model calls: LiteLLM identity.</text>
-  <text x="40" y="1005" class="small">2026-11-25: 12 exact-output calls + full A/B/C acceptance passed. Private MCP TLS and cross-user task isolation remain limitations.</text>
+  <text x="40" y="1005" class="small">2026-11-26: no-sidecar MCP and background A2A jobs verified. Private MCP TLS and cross-user task isolation remain limitations.</text>
 </svg>

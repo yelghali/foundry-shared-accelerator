@@ -9,6 +9,57 @@ from samples.consume_gateway import main
 
 
 class ConsumerGatewayTests(unittest.TestCase):
+    def test_background_submits_then_polls_with_v1_and_returns_only_completed_artifacts(self):
+        tasks = [
+            {"id": "task-1", "status": {"state": "TASK_STATE_SUBMITTED"}},
+            {"id": "task-1", "status": {"state": "TASK_STATE_WORKING"}},
+            {"id": "task-1", "status": {"state": "TASK_STATE_COMPLETED"},
+             "artifacts": [{"parts": [{"text": "391"}]}]},
+        ]
+        replies = [Mock(status_code=200, headers={}, json=Mock(return_value={
+            "jsonrpc": "2.0", "id": index, "result": {"task": task},
+        })) for index, task in enumerate(tasks, 1)]
+        with patch.dict(os.environ, {"LITELLM_VIRTUAL_KEY": "sk-test", "GATEWAY_ACCESS_TOKEN": "user-test"}), \
+             patch("sys.argv", ["consumer", "--endpoint", "https://gateway.example/ai",
+                                "--kind", "hosted-agent", "--agent-name", "hosted", "--background"]), \
+             patch("samples.consume_gateway.requests.post", side_effect=replies) as post, \
+             patch("samples.consume_gateway.time.sleep"), \
+             redirect_stdout(io.StringIO()) as output, redirect_stderr(io.StringIO()) as diagnostic:
+            main()
+        self.assertTrue(post.call_args_list[0].kwargs["json"]["params"]["configuration"]["returnImmediately"])
+        for call in post.call_args_list:
+            self.assertEqual(call.kwargs["headers"]["A2A-Version"], "1.0")
+        for call in post.call_args_list[1:]:
+            self.assertEqual(call.kwargs["json"]["method"], "GetTask")
+            self.assertEqual(call.kwargs["json"]["params"], {"id": "task-1"})
+        self.assertIn("TASK_STATE_SUBMITTED", diagnostic.getvalue())
+        self.assertEqual(json.loads(output.getvalue()), {"task": tasks[-1]})
+
+    def test_background_failed_task_is_not_reported_as_success(self):
+        for state in ("TASK_STATE_FAILED", "TASK_STATE_INPUT_REQUIRED"):
+            with self.subTest(state=state), \
+                 patch.dict(os.environ, {"LITELLM_VIRTUAL_KEY": "sk-test", "GATEWAY_ACCESS_TOKEN": "user-test"}), \
+                 patch("sys.argv", ["consumer", "--endpoint", "https://gateway.example/ai",
+                                    "--kind", "hosted-agent", "--background"]), \
+                 patch("samples.consume_gateway.post_request") as post, \
+                 patch("samples.consume_gateway.parse_rpc_response", side_effect=[
+                     {"task": {"id": "task-1"}}, {"id": "task-1", "status": {"state": state}},
+                 ]), redirect_stdout(io.StringIO()) as output, redirect_stderr(io.StringIO()):
+                with self.assertRaisesRegex(RuntimeError, "without completion"):
+                    main()
+                self.assertEqual(output.getvalue(), "")
+
+    def test_background_polling_timeout_is_explicit(self):
+        with patch.dict(os.environ, {"LITELLM_VIRTUAL_KEY": "sk-test", "GATEWAY_ACCESS_TOKEN": "user-test"}), \
+             patch("sys.argv", ["consumer", "--endpoint", "https://gateway.example/ai",
+                                "--kind", "hosted-agent", "--background", "--poll-timeout", "1"]), \
+             patch("samples.consume_gateway.post_request"), \
+             patch("samples.consume_gateway.parse_rpc_response", return_value={"task": {"id": "task-1"}}), \
+             patch("samples.consume_gateway.time.monotonic", side_effect=[10, 12]), \
+             redirect_stderr(io.StringIO()):
+            with self.assertRaises(TimeoutError):
+                main()
+
     def test_verbose_responses_reports_server_identity_timing_and_safe_headers(self):
         payload = {
             "status": "completed",
