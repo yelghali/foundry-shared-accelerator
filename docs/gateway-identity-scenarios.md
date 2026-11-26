@@ -714,6 +714,45 @@ does not need to contain a user token or an `agent_reference`.
 
 #### Where is authentication implemented?
 
+##### Can A/B MCP use native workload identity without the sidecar?
+
+**Investigation on 2026-11-26, deployed LiteLLM `1.110.2`: not through the
+native MCP configuration path inspected/tested.** Native A2A OIDC support
+does not imply native MCP OIDC support.
+
+The installed `proxy/mcp_server/oauth2_token_cache.py::resolve_mcp_auth`
+selects a per-request credential, native OAuth client-credentials token, or
+the configured static `authentication_token`. Executing it with
+`oidc/azure/api://AzureADTokenExchange` returned that string unchanged, not an
+Azure token. The inspected native MCP client-credentials implementation
+requires a client secret; it does not supply an AKS projected assertion.
+
+Live probes from the LiteLLM container, without modifying its deployment:
+
+| Probe | Actual result | What it proves |
+|---|---|---|
+| MCP native resolver with `oidc/azure/...` | String returned unchanged | This native MCP path does not perform A2A-style OIDC resolution |
+| Send that unresolved bearer directly to FastMCP | HTTP **401** | Putting the OIDC expression into a static bearer field is not a working fix |
+| Acquire an actual token with Azure SDK, then use native LiteLLM `MCPClient` directly to FastMCP | Tool listing, `whoami` client-ID comparison and actual Blob marker **passed** | MCP routing works without a sidecar, but credential acquisition was explicit custom probe code |
+
+The SDK control initially used the wrong SDK result attribute (`isError`);
+after reading the pinned API, the probe normalized the result with
+`model_dump(by_alias=True)` and completed all identity/Blob assertions.
+Neither probe establishes automatic native workload-token renewal.
+
+**Decision:** retain the working A/B MCP sidecar for secretless managed-identity
+authentication. Replacing it with an in-process Python token provider would
+remove a container, but would still be **custom code**, not native-only
+LiteLLM. A static copied token would expire and is not an acceptable replacement.
+C already uses native MCP user OBO without the sidecar; switching A/B to that
+would change the authentication scenario. Native MCP client-secret OAuth is
+another different credential model, not secretless workload identity.
+
+No gateway image, deployment, identity, network policy or consumer route was
+changed by this investigation. This conclusion is scoped to the deployed
+version and inspected paths, not a claim about every LiteLLM release.
+See the official [native MCP authentication matrix](https://docs.litellm.ai/docs/mcp_config_reference#upstream-auth-matrix).
+
 | Call / component | A and B | C |
 |---|---|---|
 | MCP service-token authentication | **Custom sidecar container** in the LiteLLM pod; same pod workload identity | Not used; **no adapter sidecar** in C's LiteLLM pod |
