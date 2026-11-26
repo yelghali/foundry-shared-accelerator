@@ -102,26 +102,16 @@ self-service form has **not** been deployed.
 
 ## Standalone demo: APIM + LiteLLM
 
-The [demo README](scenarios/apim-litellm/README.md) explains model calling and
-A/B/C authentication, workload identities, app registrations and consent.
-This is a separately deployed, Azure-tested **demo**, not part of the Day 0
-platform deployment or Day 1/team-onboarding logic. It reuses an explicitly
-supplied Foundry project/model account and does not switch the main gateway.
+The separate [APIM + LiteLLM demo](demos/apim_litellm/README.md) now contains
+its own documentation, diagrams, samples, gateway configuration, scripts,
+operator tools, Terraform roots and tests under `demos/apim_litellm/`.
+It is **not part of Day 0/platform deployment or Day 1/team onboarding** and
+does not switch the accelerator's native gateway.
 
-[![Standalone private Foundry and LiteLLM demo](docs/diagrams/apim-litellm-private-demo.svg)](scenarios/apim-litellm/README.md)
-
-The current demo profile has private-only Foundry model/agent endpoints and
-private AKS MCP. Prompt and model-backed hosted agents are exposed through both
-A2A and Responses, with live A/B/C identity tests. See the demo's explicit
-private-HTTP MCP and native prompt-tool limitations; it is not production HA.
+The root `samples/consume_agent.py` remains the accelerator's sample client.
+The LiteLLM consumer and hosted-agent samples belong only to the demo.
 
 ## More detail
-
-- [Standalone APIM/LiteLLM demo: README and per-scenario auth diagrams](scenarios/apim-litellm/README.md)
-
-- [Demo deployment, identity and live-test runbook](docs/gateway-identity-scenarios.md)
-
-- [Demo infrastructure background and historical validation](docs/apim-litellm.md)
 
 - [Platform deployment and network inputs](docs/deploy-platform.md)
 - [Team onboarding, KBs, RBAC and acceptance](docs/onboard-team.md)
@@ -137,7 +127,7 @@ private-HTTP MCP and native prompt-tool limitations; it is not production HA.
 This is an operational **dev** profile, not a production HA or billing
 solution. State and generated receipts are local under `.local/`; protect
 state and use a remote backend for production. The default native-gateway scenario does not deploy hosted agents; the optional
-[standalone APIM/LiteLLM demo](scenarios/apim-litellm/README.md) includes private
+[standalone APIM/LiteLLM demo](demos/apim_litellm/README.md) includes private
 model-backed A2A/Responses agents and preserves the hosted Echo transport sample.
 A self-service onboarding form is not implemented. Deployed resources remain running and
 can incur charges; nothing is automatically destroyed. See the
