@@ -8,7 +8,6 @@ import os
 import ipaddress
 import hashlib
 import re
-from copy import deepcopy
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -85,7 +84,6 @@ def render():
         gateway_env["FOUNDRY_DECLARATIVE_A2A_URL"] = required("FOUNDRY_DECLARATIVE_A2A_URL")
     if scenario == "user-obo":
         obo_env = {
-            "BACKEND_AUTH_MODE": "user-obo",
             "OBO_TENANT_ID": os.environ.get("OBO_TENANT_ID", tenant),
             "OBO_CLIENT_ID": required("OBO_CLIENT_ID"),
             "OBO_CLIENT_SECRET_FILE": "/mnt/secrets-store/obo-client-secret",
@@ -149,8 +147,9 @@ def render():
                 "model_name": alias,
                 "litellm_params": {"model": model, "api_base": target, "drop_params": True},
             })
-        hosted = deepcopy(settings["agents"][0])
-        hosted["agent_name"] = "hosted"
+        # Reuse the registered hosted alias, retaining its scenario-specific
+        # native workload or custom delegated auth rather than adding a fallback.
+        hosted = next(agent for agent in settings["agents"] if agent["agent_name"] == "hosted")
         hosted["agent_card_params"].update(
             name="Hosted model-backed agent",
             description="Private model-backed hosted A2A agent",
@@ -158,9 +157,6 @@ def render():
             skills=[{"id": "chat", "name": "Chat", "description": "Model and explicit MCP read", "tags": ["chat"]}],
         )
         gateway_env["FOUNDRY_HOSTED_A2A_URL"] = hosted["agent_card_params"]["url"]
-        settings["agents"].append(hosted)
-        if os.environ.get("PRIVATE_FOUNDRY_DEMO", "").lower() == "true":
-            settings["agents"] = [agent for agent in settings["agents"] if agent["agent_name"] != "echo"]
     config = yaml.safe_dump(settings, sort_keys=False)
     resources = [{"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": namespace}}]
     for name, client in [

@@ -71,13 +71,13 @@ only for RBAC this root owns. Do not manage identical role assignments in both
 the gateway and private-Foundry states.
 
 ```powershell
-terraform -chdir=demos\apim_litellm\infra\demo-private-foundry init
-terraform -chdir=demos\apim_litellm\infra\demo-private-foundry plan `
+terraform -chdir=infra\demo-private-foundry init
+terraform -chdir=infra\demo-private-foundry plan `
   -var-file="$PWD\.local\demo-private-foundry\private.tfvars.json" `
   -out="$PWD\.local\demo-private-foundry\private.tfplan"
-terraform -chdir=demos\apim_litellm\infra\demo-private-foundry apply `
+terraform -chdir=infra\demo-private-foundry apply `
   "$PWD\.local\demo-private-foundry\private.tfplan"
-terraform -chdir=demos\apim_litellm\infra\demo-private-foundry output -json private_foundry
+terraform -chdir=infra\demo-private-foundry output -json private_foundry
 ```
 
 The backend explicitly stores state at
@@ -88,14 +88,14 @@ the account, model, project, capability host, private endpoints, DNS links,
 runtime RBAC and private registry were subsequently deployed.
 
 The `private_foundry` output supplies project/model endpoints and private
-registry. Optional gateway principal sets grant model inference to A/B/C and
-agent invocation only to A/B. C receives no workload-identity agent fallback.
+registry. Optional gateway principal sets grant model inference to all three identity scenarios and
+agent invocation only to shared/dedicated service identities. The delegated-user profile receives no workload-identity agent fallback.
 
 Build the hosted image with the demo build registry, import it into the private
 registry using `az acr import`, then run:
 
 ```powershell
-python -m demos.apim_litellm.operator.demo_hosted `
+python -m litellm_demo.demo_hosted `
   --project-endpoint "<private-project-endpoint>" --tenant-id "<tenant>" `
   --image "<private-registry>/hosted-dual:<tested-tag>" `
   --model-endpoint "<private-model-endpoint>" `

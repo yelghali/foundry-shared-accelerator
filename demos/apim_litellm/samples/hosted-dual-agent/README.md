@@ -1,92 +1,71 @@
-# Model-backed hosted A2A + Responses demo agent
+# Model-backed hosted agent: A2A and Responses
 
-**Deployed and live-tested on private Foundry on 2026-11-25.** The original
-hosted Echo remains unchanged as the known-working A2A transport test.
+This is the active hosted sample for the [standalone demo](../../README.md).
+It is not a deterministic Echo server and is not used by accelerator team
+onboarding.
 
-This sample composes `A2AAgentServerHost` and `ResponsesAgentServerHost`, with a
-shared `respond` function. Normal text invokes the configured model using the
-hosted runtime's Azure identity. `/mcp-read <blob-name>` explicitly calls the
-private MCP `read_blob` tool using that runtime identity; it is a deterministic
-tool command, not a claim of autonomous LLM tool planning or user OBO into MCP.
-The hosted agent's own runtime identity authorizes both its model and MCP
-calls, even when its inbound invocation uses user OBO.
+## Three separate protocol layers
 
-`/network-check` probes only the fixed `https://example.com/` destination. It
-requires public DNS resolution, returns `INTERNET_EGRESS_BLOCKED` on a connection/
-read timeout, and fails if an HTTP response is received. It never accepts a
-caller-selected probe URL. This is a demo diagnostic, not general proof of all
-possible egress paths.
+1. [Container code](src/main.py) composes `A2AAgentServerHost` and
+   `ResponsesAgentServerHost`, both using the same model-backed response logic.
+2. [Publisher](../../litellm_demo/demo_hosted.py) declares image-hosted
+   container protocols `a2a: 1.0.0` and `responses: 2.0.0`.
+3. The publisher enables A2A/Responses on the agent's published endpoint and
+   selects the version receiving traffic. LiteLLM routes to those endpoints;
+   it does not implement protocols missing from the container.
 
-The image publisher declares **container protocols** A2A `1.0.0` and Responses
-`2.0.0`, as well as both published endpoint protocols. Merely declaring a published
-Responses endpoint on the old Echo container is insufficient.
+Use `protocol_versions` for this image-hosted definition. The platform
+rejected the code-hosting-only `container_protocol_versions` field with an
+image definition in the tested environment.
 
-## Actual Foundry API distinction
+## Runtime inputs and identity
 
-Live probes on 2026-11-25 established:
+| Input | Meaning |
+|---|---|
+| `MODEL_ENDPOINT` | Approved Azure OpenAI HTTPS base, without `/openai/v1` |
+| `MODEL_DEPLOYMENT` | Actual deployed model name |
+| `PRIVATE_MCP_URL` | Optional fixed private MCP target |
+| `MCP_TOKEN_SCOPE` | Scope for that MCP API |
 
-| Agent type | Endpoint | Result |
-|---|---|---|
-| Prompt agent | Project `/openai/v1/responses`, with `agent_reference` | HTTP 200 and expected output |
-| Hosted Echo | Same project Responses endpoint | HTTP 400: hosted agents require their dedicated endpoint |
-| Hosted Echo | `/agents/<name>/endpoint/protocols/openai/responses?api-version=2025-11-15-preview` | HTTP 400: container must declare Responses `2.0.0` |
+The hosted **runtime identity** needs model RBAC and explicit MCP authorization.
+Inbound delegated-user OBO does not automatically propagate to those downstream
+calls.
 
-Consequently, a LiteLLM named-agent entry that works for the prompt agent must
-not be assumed to work for the hosted agent unchanged. Native provider routing,
-authentication renewal, preview query parameters and output shape need separate
-validation before exposing a hosted Responses alias.
+Normal text invokes the model. `/mcp-read gateway-check.txt` performs an
+explicit authenticated tool read, not autonomous tool planning. `/network-check`
+probes only a fixed public HTTPS destination; it is not exhaustive egress
+certification.
 
-## Deployment inputs
+## Deploy and test
 
-Use an existing, connected Foundry project. The tested SDK publisher can use
-Azure CLI or an explicitly selected azd operator login.
-The publisher supplies these runtime environment values:
+Run from the demo folder:
 
-* `MODEL_ENDPOINT`: base Azure OpenAI HTTPS endpoint, without `/openai/v1`;
-* `MODEL_DEPLOYMENT`: the approved model deployment;
-* `PRIVATE_MCP_URL`: optional fixed MCP endpoint; trusted HTTPS is preferred,
-  while the current demo supports HTTP only to an explicit RFC1918 IP;
-* `MCP_TOKEN_SCOPE`: that MCP API's token scope when MCP is enabled.
+```powershell
+.\.venv\Scripts\python.exe -m litellm_demo.demo_hosted --help
 
-The hosted runtime identity needs model inference RBAC and explicit MCP
-authorization. Private DNS, routing and Foundry/model TLS must work before
-runtime tests. The sample does not copy an incoming user's token to MCP.
+# Keep agent-server SDK dependencies isolated from the operator environment.
+python -m venv .local\hosted-agent-venv
+.\.local\hosted-agent-venv\Scripts\python.exe -m pip install -r samples\hosted-dual-agent\src\requirements.txt
+.\.local\hosted-agent-venv\Scripts\python.exe samples\hosted-dual-agent\verify_local.py
+```
 
-The tested private deployment uses the [image-hosted publisher](../../operator/demo_hosted.py)
-and this sample's Dockerfile. The project endpoint and tenant are explicit CLI
-arguments; there is no separate code-upload manifest to maintain. The publisher
-declares `protocol_versions` for image hosting; the service rejects the
-code-hosting-only `container_protocol_versions` field with an image definition.
+The publisher requires an existing project, container image, explicit
+tenant/model inputs and `--apply` for writes. Without it, it prints a plan.
+Use the [deployment sequence](../../docs/deployment.md) for private ACR,
+image-pull permissions, network prerequisites and runtime roles.
 
-The MCP target is the authenticated internal AKS listener, restricted to the
-delegated subnet. It currently uses HTTP over that private path; use trusted
-HTTPS for production. HTTP is accepted only for an explicitly configured
-RFC1918 IP, not arbitrary public URLs.
+Local protocol validation uses real SDK handlers with a mocked model backend;
+it is not Azure acceptance. The [named live scenarios](../../docs/lab-guide.md)
+exercise actual model answers and background A2A submission/GetTask polling.
+Dedicated hosted Responses uses
+`/agents/<name>/endpoint/protocols/openai/responses` with the required preview
+API version, not the project-wide Responses route.
 
-LiteLLM exposes `hosted-agent-responses` at `/v1/responses` and `hosted` at
-`/a2a/hosted`. Both call the dedicated private Foundry endpoint directly.
-Prompt-agent MCP binding was attempted but is not part of the published
-model-only prompt baseline; its native private-tool path remains unverified.
+Hosted capabilities are preview-dependent. Cancellation, crash recovery,
+cross-user job isolation and streaming are not certified. Private MCP is
+currently HTTP inside the VNet; use trusted HTTPS for production.
 
-Only Responses POST generation is certified here. Streaming, response
-retrieval/deletion, multi-turn memory integration and crash recovery are not
-covered by this demo's protocol checks.
-
-## Local protocol check
-
-Install the declared requirements into an isolated environment, then run
-`python demos\apim_litellm\demos\apim_litellm\samples\hosted-dual-agent\verify_local.py` from the repository root.
-It uses the actual SDK A2A/Responses handlers with a deterministic mocked backend
-and requires no Azure credentials. Both handlers passed this check on
-2026-11-25. This does not test model inference, MCP networking or hosted runtime
-deployment. Dependencies should remain isolated from the pinned working
-LiteLLM scenario environment.
-
-Live checks additionally exercised real model inference, saved A2A Tasks,
-private MCP Blob reads and the public HTTPS denial diagnostic. Positive
-single-user OBO invocation does not imply user delegation from this agent
-into its downstream model/MCP calls.
-
-SDK patterns:
-[Responses getting started](https://github.com/Azure/azure-sdk-for-python/blob/main/sdk/agentserver/azure-ai-agentserver-responses/samples/sample_01_getting_started.py),
-[multi-protocol composition](https://github.com/Azure/azure-sdk-for-python/blob/main/sdk/agentserver/azure-ai-agentserver-a2a/samples/02-multi-protocol/multi_protocol.py).
+Official references:
+[Hosted deployment](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/deploy-hosted-agent),
+[incoming A2A](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/enable-agent-to-agent-endpoint),
+[SDK multi-protocol example](https://github.com/Azure/azure-sdk-for-python/blob/main/sdk/agentserver/azure-ai-agentserver-a2a/samples/02-multi-protocol/multi_protocol.py).

@@ -5,7 +5,7 @@ import unittest
 from contextlib import redirect_stdout, redirect_stderr
 from unittest.mock import Mock, patch
 
-from demos.apim_litellm.samples.consume_gateway import main
+from samples.consume_gateway import main
 
 
 class ConsumerGatewayTests(unittest.TestCase):
@@ -22,8 +22,8 @@ class ConsumerGatewayTests(unittest.TestCase):
         with patch.dict(os.environ, {"LITELLM_VIRTUAL_KEY": "sk-test", "GATEWAY_ACCESS_TOKEN": "user-test"}), \
              patch("sys.argv", ["consumer", "--endpoint", "https://gateway.example/ai",
                                 "--kind", "hosted-agent", "--agent-name", "hosted", "--background"]), \
-             patch("demos.apim_litellm.samples.consume_gateway.requests.post", side_effect=replies) as post, \
-             patch("demos.apim_litellm.samples.consume_gateway.time.sleep"), \
+             patch("samples.consume_gateway.requests.post", side_effect=replies) as post, \
+             patch("samples.consume_gateway.time.sleep"), \
              redirect_stdout(io.StringIO()) as output, redirect_stderr(io.StringIO()) as diagnostic:
             main()
         self.assertTrue(post.call_args_list[0].kwargs["json"]["params"]["configuration"]["returnImmediately"])
@@ -41,8 +41,8 @@ class ConsumerGatewayTests(unittest.TestCase):
                  patch.dict(os.environ, {"LITELLM_VIRTUAL_KEY": "sk-test", "GATEWAY_ACCESS_TOKEN": "user-test"}), \
                  patch("sys.argv", ["consumer", "--endpoint", "https://gateway.example/ai",
                                     "--kind", "hosted-agent", "--background"]), \
-                 patch("demos.apim_litellm.samples.consume_gateway.post_request") as post, \
-                 patch("demos.apim_litellm.samples.consume_gateway.parse_rpc_response", side_effect=[
+                 patch("samples.consume_gateway.post_request") as post, \
+                 patch("samples.consume_gateway.parse_rpc_response", side_effect=[
                      {"task": {"id": "task-1"}}, {"id": "task-1", "status": {"state": state}},
                  ]), redirect_stdout(io.StringIO()) as output, redirect_stderr(io.StringIO()):
                 with self.assertRaisesRegex(RuntimeError, "without completion"):
@@ -53,9 +53,9 @@ class ConsumerGatewayTests(unittest.TestCase):
         with patch.dict(os.environ, {"LITELLM_VIRTUAL_KEY": "sk-test", "GATEWAY_ACCESS_TOKEN": "user-test"}), \
              patch("sys.argv", ["consumer", "--endpoint", "https://gateway.example/ai",
                                 "--kind", "hosted-agent", "--background", "--poll-timeout", "1"]), \
-             patch("demos.apim_litellm.samples.consume_gateway.post_request"), \
-             patch("demos.apim_litellm.samples.consume_gateway.parse_rpc_response", return_value={"task": {"id": "task-1"}}), \
-             patch("demos.apim_litellm.samples.consume_gateway.time.monotonic", side_effect=[10, 12]), \
+             patch("samples.consume_gateway.post_request"), \
+             patch("samples.consume_gateway.parse_rpc_response", return_value={"task": {"id": "task-1"}}), \
+             patch("samples.consume_gateway.time.monotonic", side_effect=[10, 12]), \
              redirect_stderr(io.StringIO()):
             with self.assertRaises(TimeoutError):
                 main()
@@ -71,8 +71,8 @@ class ConsumerGatewayTests(unittest.TestCase):
         with patch.dict(os.environ, {"LITELLM_VIRTUAL_KEY": "sk-do-not-log", "GATEWAY_ACCESS_TOKEN": "user-do-not-log"}), \
              patch("sys.argv", ["consume_gateway", "--endpoint", "https://gateway.example/ai",
                                 "--kind", "hosted-agent-responses"]), \
-             patch("demos.apim_litellm.samples.consume_gateway.requests.post") as post, \
-             patch("demos.apim_litellm.samples.consume_gateway.time.perf_counter", side_effect=[10.0, 12.25]), \
+             patch("samples.consume_gateway.requests.post") as post, \
+             patch("samples.consume_gateway.time.perf_counter", side_effect=[10.0, 12.25]), \
              redirect_stdout(io.StringIO()) as output, redirect_stderr(io.StringIO()) as diagnostic:
             post.return_value = Mock(
                 status_code=200,
@@ -106,7 +106,7 @@ class ConsumerGatewayTests(unittest.TestCase):
         with patch.dict(os.environ, {"LITELLM_VIRTUAL_KEY": "sk-consumer", "GATEWAY_ACCESS_TOKEN": "user-assertion"}), \
              patch("sys.argv", ["consume_gateway", "--endpoint", "https://gateway.example/ai",
                                 "--kind", "hosted-agent", "--agent-name", "hosted"]), \
-             patch("demos.apim_litellm.samples.consume_gateway.requests.post") as post, \
+             patch("samples.consume_gateway.requests.post") as post, \
              redirect_stdout(io.StringIO()) as output, redirect_stderr(io.StringIO()) as diagnostic:
             post.return_value = Mock(
                 status_code=200, headers={"Content-Type": "application/json"},
@@ -134,7 +134,7 @@ class ConsumerGatewayTests(unittest.TestCase):
                  patch.dict(os.environ, {"LITELLM_VIRTUAL_KEY": "sk-do-not-log", "GATEWAY_ACCESS_TOKEN": "user-do-not-log"}), \
                  patch("sys.argv", ["consume_gateway", "--endpoint", "https://gateway.example/ai",
                                     "--kind", kind, *extra]), \
-                 patch("demos.apim_litellm.samples.consume_gateway.requests.post") as post, \
+                 patch("samples.consume_gateway.requests.post") as post, \
                  redirect_stdout(io.StringIO()) as output, redirect_stderr(io.StringIO()) as diagnostic:
                 post.return_value = Mock(
                     status_code=200, headers={"Content-Type": "application/json"},
@@ -148,7 +148,7 @@ class ConsumerGatewayTests(unittest.TestCase):
                 self.assertNotIn("user-do-not-log", diagnostic.getvalue())
                 self.assertIsInstance(json.loads(output.getvalue()), dict)
 
-    @patch("demos.apim_litellm.samples.consume_gateway.requests.post")
+    @patch("samples.consume_gateway.requests.post")
     def test_private_agent_responses_uses_fixed_alias_and_responses_route(self, post):
         post.return_value = Mock(json=Mock(return_value={"output": []}))
         with patch.dict(os.environ, {"LITELLM_VIRTUAL_KEY": "sk-consumer", "GATEWAY_ACCESS_TOKEN": "user-assertion"}), \
@@ -159,7 +159,7 @@ class ConsumerGatewayTests(unittest.TestCase):
         self.assertEqual(post.call_args.args[0], "https://gateway.example/ai/v1/responses")
         self.assertEqual(post.call_args.kwargs["json"], {"model": "hosted-agent-responses", "input": "hello"})
 
-    @patch("demos.apim_litellm.samples.consume_gateway.requests.post")
+    @patch("samples.consume_gateway.requests.post")
     def test_application_key_and_entra_token_remain_separate(self, post):
         post.return_value = Mock(json=Mock(return_value={"choices": [{"message": {"content": "HELLO"}}]}))
         with patch.dict(os.environ, {"LITELLM_VIRTUAL_KEY": "sk-consumer", "GATEWAY_ACCESS_TOKEN": "user-assertion"}), \
@@ -170,9 +170,9 @@ class ConsumerGatewayTests(unittest.TestCase):
             "Authorization": "Bearer user-assertion", "x-litellm-api-key": "Bearer sk-consumer",
         })
 
-    @patch("demos.apim_litellm.samples.consume_gateway.requests.post")
-    @patch("demos.apim_litellm.samples.consume_gateway.load_json", return_value={"gateway": {"app_id": "test"}})
-    @patch("demos.apim_litellm.samples.consume_gateway.cached_user_token", side_effect=RuntimeError("Real user login required"))
+    @patch("samples.consume_gateway.requests.post")
+    @patch("samples.consume_gateway.load_json", return_value={"gateway": {"app_id": "test"}})
+    @patch("samples.consume_gateway.cached_user_token", side_effect=RuntimeError("Real user login required"))
     def test_cache_authentication_failure_never_falls_back_to_another_identity(self, token, identity, post):
         with patch.dict(os.environ, {"LITELLM_VIRTUAL_KEY": "sk-consumer", "GATEWAY_ACCESS_TOKEN": "different-user"}), \
              patch("sys.argv", ["consume_gateway", "--endpoint", "https://gateway.example/ai", "--kind", "mcp",

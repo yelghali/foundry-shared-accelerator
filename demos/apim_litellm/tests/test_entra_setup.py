@@ -6,7 +6,7 @@ from contextlib import redirect_stdout
 from copy import deepcopy
 from unittest.mock import Mock, patch
 
-from demos.apim_litellm.operator.entra_setup import (
+from litellm_demo.entra_setup import (
     GraphClient, IdentityError, ensure_application, ensure_obo_secret,
     grant_consent, main, provision, VAULT_PROXY_SCRIPT, cached_user_token, configure_user_consent,
 )
@@ -59,10 +59,10 @@ class EntraSetupTests(unittest.TestCase):
 
     def test_user_consent_plan_has_no_authentication_or_writes(self):
         receipt, _, _ = self.user_consent_fixture()
-        with patch("demos.apim_litellm.operator.entra_setup.Path.read_text", return_value=json.dumps(receipt)), \
-             patch("demos.apim_litellm.operator.entra_setup.AzureCliCredential") as credential, \
-             patch("demos.apim_litellm.operator.entra_setup.GraphClient") as graph, \
-             patch("demos.apim_litellm.operator.entra_setup.save_receipt") as save, redirect_stdout(io.StringIO()) as output:
+        with patch("litellm_demo.entra_setup.Path.read_text", return_value=json.dumps(receipt)), \
+             patch("litellm_demo.entra_setup.AzureCliCredential") as credential, \
+             patch("litellm_demo.entra_setup.GraphClient") as graph, \
+             patch("litellm_demo.entra_setup.save_receipt") as save, redirect_stdout(io.StringIO()) as output:
             main(["user-consent", "--identity", "receipt.json"])
         credential.assert_not_called()
         graph.assert_not_called()
@@ -124,11 +124,11 @@ class EntraSetupTests(unittest.TestCase):
             for scope in app["api"]["oauth2PermissionScopes"]:
                 scope["type"] = "User"
         apps["gateway"]["api"]["knownClientApplications"].append(receipt["test_client"]["app_id"])
-        with patch("demos.apim_litellm.operator.entra_setup.Path.read_text", return_value=json.dumps(receipt)), \
-             patch("demos.apim_litellm.operator.entra_setup.AzureDeveloperCliCredential"), \
-             patch("demos.apim_litellm.operator.entra_setup.GraphClient") as graph, \
-             patch("demos.apim_litellm.operator.entra_setup.configure_user_consent") as configure, \
-             patch("demos.apim_litellm.operator.entra_setup.save_receipt") as save, redirect_stdout(io.StringIO()) as output:
+        with patch("litellm_demo.entra_setup.Path.read_text", return_value=json.dumps(receipt)), \
+             patch("litellm_demo.entra_setup.AzureDeveloperCliCredential"), \
+             patch("litellm_demo.entra_setup.GraphClient") as graph, \
+             patch("litellm_demo.entra_setup.configure_user_consent") as configure, \
+             patch("litellm_demo.entra_setup.save_receipt") as save, redirect_stdout(io.StringIO()) as output:
             graph.return_value.request.side_effect = [apps["gateway"], apps["mcp"]]
             main(["user-consent", "--identity", "receipt.json", "--apply", "--use-azd"])
         configure.assert_called_once()
@@ -143,7 +143,7 @@ class EntraSetupTests(unittest.TestCase):
         receipt, _, _ = self.user_consent_fixture()
         receipt.update(consent_mode="user", user_consent_configured=True)
         receipt["gateway"]["audience"] = "api://" + receipt["gateway"]["app_id"]
-        with patch("demos.apim_litellm.operator.entra_setup.Path.read_text", return_value=json.dumps(receipt)), \
+        with patch("litellm_demo.entra_setup.Path.read_text", return_value=json.dumps(receipt)), \
              patch("msal.PublicClientApplication") as public_client, redirect_stdout(io.StringIO()) as output:
             app = public_client.return_value
             app.initiate_device_flow.return_value = {"user_code": "code", "message": "Complete user consent"}
@@ -153,11 +153,11 @@ class EntraSetupTests(unittest.TestCase):
         self.assertNotIn("must-not-be-printed", output.getvalue())
 
     def test_consent_plan_never_authenticates_or_writes(self):
-        with patch("demos.apim_litellm.operator.entra_setup.Path.read_text", return_value=json.dumps(self.consent_receipt())), \
-             patch("demos.apim_litellm.operator.entra_setup.AzureCliCredential") as cli, \
-             patch("demos.apim_litellm.operator.entra_setup.AzureDeveloperCliCredential") as azd, \
-             patch("demos.apim_litellm.operator.entra_setup.GraphClient") as graph, \
-             patch("demos.apim_litellm.operator.entra_setup.save_receipt") as save, \
+        with patch("litellm_demo.entra_setup.Path.read_text", return_value=json.dumps(self.consent_receipt())), \
+             patch("litellm_demo.entra_setup.AzureCliCredential") as cli, \
+             patch("litellm_demo.entra_setup.AzureDeveloperCliCredential") as azd, \
+             patch("litellm_demo.entra_setup.GraphClient") as graph, \
+             patch("litellm_demo.entra_setup.save_receipt") as save, \
              redirect_stdout(io.StringIO()) as output:
             main(["consent", "--identity", "receipt.json", "--include-azure-cli"])
         cli.assert_not_called()
@@ -168,14 +168,14 @@ class EntraSetupTests(unittest.TestCase):
 
     def test_consent_apply_is_graph_only_and_uses_explicit_receipt_tenant(self):
         receipt = self.consent_receipt()
-        with patch("demos.apim_litellm.operator.entra_setup.Path.read_text", return_value=json.dumps(receipt)), \
-             patch("demos.apim_litellm.operator.entra_setup.AzureDeveloperCliCredential") as azd, \
-             patch("demos.apim_litellm.operator.entra_setup.GraphClient") as graph, \
-             patch("demos.apim_litellm.operator.entra_setup.grant_consent", side_effect=["one", "two", "three", "cli"]) as grant, \
-             patch("demos.apim_litellm.operator.entra_setup.ensure_application") as registration, \
-             patch("demos.apim_litellm.operator.entra_setup.ensure_obo_secret") as secret, \
-             patch("demos.apim_litellm.operator.entra_setup.subprocess.run") as subprocess_run, \
-             patch("demos.apim_litellm.operator.entra_setup.save_receipt") as save, redirect_stdout(io.StringIO()):
+        with patch("litellm_demo.entra_setup.Path.read_text", return_value=json.dumps(receipt)), \
+             patch("litellm_demo.entra_setup.AzureDeveloperCliCredential") as azd, \
+             patch("litellm_demo.entra_setup.GraphClient") as graph, \
+             patch("litellm_demo.entra_setup.grant_consent", side_effect=["one", "two", "three", "cli"]) as grant, \
+             patch("litellm_demo.entra_setup.ensure_application") as registration, \
+             patch("litellm_demo.entra_setup.ensure_obo_secret") as secret, \
+             patch("litellm_demo.entra_setup.subprocess.run") as subprocess_run, \
+             patch("litellm_demo.entra_setup.save_receipt") as save, redirect_stdout(io.StringIO()):
             graph.return_value.list.return_value = [{"id": "00000000-0000-0000-0000-000000000005"}]
             main(["consent", "--identity", "receipt.json", "--apply", "--include-azure-cli", "--use-azd"])
         azd.assert_called_once_with(tenant_id=receipt["tenant_id"], process_timeout=120)
@@ -195,11 +195,11 @@ class EntraSetupTests(unittest.TestCase):
         self.assertEqual(save.call_args.args[1]["consent_grant_ids"], ["one", "two", "three", "cli"])
 
     def test_failed_consent_does_not_replace_receipt(self):
-        with patch("demos.apim_litellm.operator.entra_setup.Path.read_text", return_value=json.dumps(self.consent_receipt())), \
-             patch("demos.apim_litellm.operator.entra_setup.AzureCliCredential"), \
-             patch("demos.apim_litellm.operator.entra_setup.GraphClient"), \
-             patch("demos.apim_litellm.operator.entra_setup.grant_consent", side_effect=["first", IdentityError(403, "Denied")]), \
-             patch("demos.apim_litellm.operator.entra_setup.save_receipt") as save:
+        with patch("litellm_demo.entra_setup.Path.read_text", return_value=json.dumps(self.consent_receipt())), \
+             patch("litellm_demo.entra_setup.AzureCliCredential"), \
+             patch("litellm_demo.entra_setup.GraphClient"), \
+             patch("litellm_demo.entra_setup.grant_consent", side_effect=["first", IdentityError(403, "Denied")]), \
+             patch("litellm_demo.entra_setup.save_receipt") as save:
             with self.assertRaises(IdentityError):
                 main(["consent", "--identity", "receipt.json", "--apply"])
         save.assert_not_called()
@@ -207,8 +207,8 @@ class EntraSetupTests(unittest.TestCase):
     def test_consent_rejects_non_uuid_principal_before_authentication(self):
         receipt = self.consent_receipt()
         receipt["mcp"]["sp_id"] = "unsafe'principal"
-        with patch("demos.apim_litellm.operator.entra_setup.Path.read_text", return_value=json.dumps(receipt)), \
-             patch("demos.apim_litellm.operator.entra_setup.AzureCliCredential") as credential:
+        with patch("litellm_demo.entra_setup.Path.read_text", return_value=json.dumps(receipt)), \
+             patch("litellm_demo.entra_setup.AzureCliCredential") as credential:
             with self.assertRaises(ValueError):
                 main(["consent", "--identity", "receipt.json", "--apply"])
         credential.assert_not_called()
@@ -216,8 +216,8 @@ class EntraSetupTests(unittest.TestCase):
     def test_cached_user_token_uses_exact_scope_account_and_encrypted_cache_without_logging(self):
         identity = {"tenant_id": "tenant", "test_client": {"app_id": "public-client"},
                     "gateway": {"scope": "api://gateway/access_as_user"}}
-        with patch("demos.apim_litellm.operator.entra_setup.Path.is_file", return_value=True), \
-             patch("demos.apim_litellm.operator.entra_setup.encrypted_token_cache", return_value="encrypted-cache") as cache, \
+        with patch("litellm_demo.entra_setup.Path.is_file", return_value=True), \
+             patch("litellm_demo.entra_setup.encrypted_token_cache", return_value="encrypted-cache") as cache, \
              patch("msal.PublicClientApplication") as public_client, \
              redirect_stdout(io.StringIO()) as output:
             app = public_client.return_value
@@ -237,15 +237,15 @@ class EntraSetupTests(unittest.TestCase):
                     "gateway": {"scope": "api://gateway/access_as_user"}}
         for accounts in ([], [{"id": "one"}, {"id": "two"}]):
             with self.subTest(accounts=accounts), \
-                 patch("demos.apim_litellm.operator.entra_setup.Path.is_file", return_value=True), \
-                 patch("demos.apim_litellm.operator.entra_setup.encrypted_token_cache"), \
+                 patch("litellm_demo.entra_setup.Path.is_file", return_value=True), \
+                 patch("litellm_demo.entra_setup.encrypted_token_cache"), \
                  patch("msal.PublicClientApplication") as public_client:
                 public_client.return_value.get_accounts.return_value = accounts
                 with self.assertRaisesRegex(RuntimeError, "exactly one account"):
                     cached_user_token(identity, "protected-cache")
                 public_client.return_value.acquire_token_silent.assert_not_called()
-        with patch("demos.apim_litellm.operator.entra_setup.Path.is_file", return_value=False), \
-             patch("demos.apim_litellm.operator.entra_setup.encrypted_token_cache") as cache:
+        with patch("litellm_demo.entra_setup.Path.is_file", return_value=False), \
+             patch("litellm_demo.entra_setup.encrypted_token_cache") as cache:
             with self.assertRaisesRegex(RuntimeError, "cache is missing.*Run login"):
                 cached_user_token(identity, "missing")
             cache.assert_not_called()
@@ -255,8 +255,8 @@ class EntraSetupTests(unittest.TestCase):
                     "gateway": {"scope": "api://gateway/access_as_user"}}
         for result in (None, {"error_description": "private-refresh-token"}, {"access_token": ""}):
             with self.subTest(result=result), \
-                 patch("demos.apim_litellm.operator.entra_setup.Path.is_file", return_value=True), \
-                 patch("demos.apim_litellm.operator.entra_setup.encrypted_token_cache"), \
+                 patch("litellm_demo.entra_setup.Path.is_file", return_value=True), \
+                 patch("litellm_demo.entra_setup.encrypted_token_cache"), \
                  patch("msal.PublicClientApplication") as public_client:
                 app = public_client.return_value
                 app.get_accounts.return_value = [{"id": "one"}]
@@ -264,8 +264,8 @@ class EntraSetupTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "Run login") as caught:
                     cached_user_token(identity, "protected-cache")
                 self.assertNotIn("private-refresh-token", str(caught.exception))
-        with patch("demos.apim_litellm.operator.entra_setup.Path.is_file", return_value=True), \
-             patch("demos.apim_litellm.operator.entra_setup.encrypted_token_cache"), \
+        with patch("litellm_demo.entra_setup.Path.is_file", return_value=True), \
+             patch("litellm_demo.entra_setup.encrypted_token_cache"), \
              patch("msal.PublicClientApplication", side_effect=RuntimeError("private-refresh-token")):
             with self.assertRaisesRegex(RuntimeError, "Run login") as caught:
                 cached_user_token(identity, "protected-cache")
@@ -362,7 +362,7 @@ class EntraSetupTests(unittest.TestCase):
         graph = GraphClient(Mock(), "https://vault.vault.azure.net", "gateway")
         graph.credential.get_token.return_value.token = "operator-private-token"
         graph.session = Mock()
-        with patch("demos.apim_litellm.operator.entra_setup.subprocess.run") as run:
+        with patch("litellm_demo.entra_setup.subprocess.run") as run:
             run.return_value = Mock(returncode=0, stdout=json.dumps({
                 "status": 200, "body": '{"id":"secret-uri"}', "headers": {},
             }))
@@ -385,7 +385,7 @@ class EntraSetupTests(unittest.TestCase):
         graph.credential.get_token.return_value.token = "operator-token"
         graph.session = Mock()
         graph.session.request.return_value = Mock(ok=True, content=b"{}", json=Mock(return_value={}))
-        with patch("demos.apim_litellm.operator.entra_setup.subprocess.run") as run:
+        with patch("litellm_demo.entra_setup.subprocess.run") as run:
             graph.request("GET", "/me")
             with self.assertRaises(ValueError):
                 graph.request("GET", "https://other.vault.azure.net/secrets/name")
@@ -396,7 +396,7 @@ class EntraSetupTests(unittest.TestCase):
         graph = GraphClient(Mock(), "https://vault.vault.azure.net", "gateway")
         graph.credential.get_token.return_value.token = "operator-token"
         graph.session = Mock()
-        with patch("demos.apim_litellm.operator.entra_setup.subprocess.run") as run:
+        with patch("litellm_demo.entra_setup.subprocess.run") as run:
             run.return_value = Mock(returncode=1, stdout="secret", stderr="token")
             with self.assertRaisesRegex(RuntimeError, "output suppressed") as caught:
                 graph.request("GET", "https://vault.vault.azure.net/secrets/name")
@@ -415,8 +415,8 @@ class EntraSetupTests(unittest.TestCase):
         self.assertNotIn("secret-private", str(caught.exception))
 
     def test_plan_never_authenticates_or_writes_receipt(self):
-        with patch("demos.apim_litellm.operator.entra_setup.AzureCliCredential") as credential, \
-             patch("demos.apim_litellm.operator.entra_setup.save_receipt") as save, \
+        with patch("litellm_demo.entra_setup.AzureCliCredential") as credential, \
+             patch("litellm_demo.entra_setup.save_receipt") as save, \
              redirect_stdout(io.StringIO()) as output:
             main(["provision", "--tenant-id", "5dc82be3-90ab-4f72-a0f2-b2557ba694e3",
                   "--subscription-id", "292e62e6-54a8-4c6a-b996-0c83f8cc29d0",
@@ -441,10 +441,10 @@ class EntraSetupTests(unittest.TestCase):
             ({}, {"app_id": "mcp-app", "sp_id": "mcp-sp", "scope_id": "mcp-scope"}),
             ({"id": "test-object"}, {"app_id": "test-app", "sp_id": "test-sp"}),
         ]
-        with patch("demos.apim_litellm.operator.entra_setup.ensure_application", side_effect=registrations), \
-             patch("demos.apim_litellm.operator.entra_setup.require_scope") as require, \
-             patch("demos.apim_litellm.operator.entra_setup.grant_consent") as consent, \
-             patch("demos.apim_litellm.operator.entra_setup.ensure_obo_secret", return_value="secret-uri"):
+        with patch("litellm_demo.entra_setup.ensure_application", side_effect=registrations), \
+             patch("litellm_demo.entra_setup.require_scope") as require, \
+             patch("litellm_demo.entra_setup.grant_consent") as consent, \
+             patch("litellm_demo.entra_setup.ensure_obo_secret", return_value="secret-uri"):
             receipt = provision(graph, args)
         consent.assert_not_called()
         require.assert_any_call(graph, {"id": "gateway-object"}, "discovered-resource-app", "discovered-scope-id")

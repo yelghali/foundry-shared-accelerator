@@ -5,7 +5,7 @@ param(
     [string]$FoundryA2AEndpoint,
     [string]$ModelEndpoint,
     [string]$ModelDeployment = "gpt-4o-mini",
-    [string]$ImageTag = "20261126a",
+    [string]$ImageTag = "20261127a",
     [ValidateSet("shared-service", "dedicated-application", "user-obo")][string]$Scenario = "shared-service",
     [string]$IdentityFile,
     [string]$ScenarioVariablesFile,
@@ -21,10 +21,10 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-$root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+$root = Split-Path -Parent $PSScriptRoot
 $variables = (Resolve-Path $VariablesFile).Path
 $settings = Get-Content -LiteralPath $variables -Raw | ConvertFrom-Json
-$stack = Join-Path $root "demos\apim_litellm\infra\apim-litellm"
+$stack = Join-Path $root "infra\apim-litellm"
 $local = Join-Path $root ".local\apim-litellm"
 New-Item -ItemType Directory -Force $local | Out-Null
 $workloadsLocal = Join-Path $local $Scenario
@@ -81,7 +81,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "AKS credentials failed." }
         & kubelogin convert-kubeconfig -l $KubernetesLoginMethod
         if ($LASTEXITCODE -ne 0) { throw "Install kubelogin and retry." }
-        $runtime = Join-Path $root "demos\apim_litellm\gateway"
+        $runtime = Join-Path $root "gateway"
         if (-not $SkipBuild) {
             foreach ($image in @(@("apim-litellm", "Dockerfile.litellm"), @("fastmcp", "Dockerfile.fastmcp"))) {
                 & az acr build --subscription $settings.subscription_id --registry $deployment.acr.name --image "$($image[0]):$ImageTag" --file (Join-Path $runtime $image[1]) $runtime --no-logs --output none
@@ -89,7 +89,7 @@ try {
             }
         }
         $dnsLabel = if ($Scenario -eq "shared-service") { $settings.name } else { "$($settings.name)-$Scenario" }
-        $prepareArgs = @("-m", "demos.apim_litellm.operator.apim_litellm", "prepare", "--deployment", $contractFile,
+        $prepareArgs = @("-m", "litellm_demo.apim_litellm", "prepare", "--deployment", $contractFile,
             "--a2a-endpoint", $FoundryA2AEndpoint, "--model-endpoint", $ModelEndpoint,
             "--model-deployment", $ModelDeployment, "--image-tag", $ImageTag,
             "--dns-label", $dnsLabel, "--exposure", $Exposure, "--scenario", $Scenario, "--output", $workloadsLocal)
@@ -100,12 +100,12 @@ try {
         if ($AgentResponsesProjectEndpoint) { $prepareArgs += @("--agent-responses-project-endpoint", $AgentResponsesProjectEndpoint) }
         & python @prepareArgs
         if ($LASTEXITCODE -ne 0) { throw "Workload manifest generation failed." }
-        & python -m demos.apim_litellm.operator.gateway_keys database --scenario $Scenario
+        & python -m litellm_demo.gateway_keys database --scenario $Scenario
         if ($LASTEXITCODE -ne 0) { throw "Persistent LiteLLM virtual-key database bootstrap failed." }
         if ($Scenario -eq "user-obo") {
             $outputs = Get-Content -LiteralPath (Join-Path $local "terraform-outputs.json") -Raw | ConvertFrom-Json
             $clientId = $outputs.identity_scenarios.value.'user-obo'.client_id
-            & python -m demos.apim_litellm.operator.gateway_keys secret-provider --scenario user-obo --identity $IdentityFile --client-id $clientId
+            & python -m litellm_demo.gateway_keys secret-provider --scenario user-obo --identity $IdentityFile --client-id $clientId
             if ($LASTEXITCODE -ne 0) { throw "OBO Key Vault secret provider setup failed." }
         }
         if (-not (Test-Path (Join-Path $workloadsLocal "tls.crt")) -or -not (Test-Path (Join-Path $workloadsLocal "tls.key"))) {
@@ -131,7 +131,7 @@ try {
         if ($seedJobs.Count -ne 1) { throw "Expected one private-network Blob seed Job." }
         & kubectl -n $namespace wait --for=condition=complete "job/$($seedJobs[0].metadata.name)" --timeout=300s
         if ($LASTEXITCODE -ne 0) { throw "Private acceptance Blob seeding failed; inspect the seed Job logs." }
-        $keyArgs = @("-m", "demos.apim_litellm.operator.gateway_keys", "keys", "--scenario", $Scenario)
+        $keyArgs = @("-m", "litellm_demo.gateway_keys", "keys", "--scenario", $Scenario)
         if ($EnableAgentResponses -or $PrivateDemo) { $keyArgs += "--agent-responses" }
         & python @keyArgs
         if ($LASTEXITCODE -ne 0) { throw "Native LiteLLM scoped virtual-key provisioning failed." }

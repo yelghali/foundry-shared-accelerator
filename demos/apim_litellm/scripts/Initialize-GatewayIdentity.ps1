@@ -7,11 +7,11 @@ DelegatedPermissionGrant.ReadWrite.All and an authorized tenant administrator.
 Key Vault requires Secrets Officer data-plane access. No tokens or passwords enter the receipt.
 For a private vault, -KeyVaultProxyNamespace gateway explicitly sends vault requests
 through deployment/fastmcp using the operator's token over kubectl stdin, never pod identity.
-Login: python -m demos.apim_litellm.operator.entra_setup login --identity <receipt>
+Login: python -m litellm_demo.entra_setup login --identity <receipt>
 Device login requires a real user; it cannot be bootstrapped unattended.
 New custom API scopes default to admin consent. To opt existing development apps
 into user consent after provisioning, run:
-python -m demos.apim_litellm.operator.entra_setup user-consent --identity <receipt> --use-azd --apply
+python -m litellm_demo.entra_setup user-consent --identity <receipt> --use-azd --apply
 This changes app-owned scopes and combined consent, never tenant consent policy.
 #>
 [CmdletBinding()]
@@ -34,7 +34,7 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-$arguments = @("-m", "demos.apim_litellm.operator.entra_setup", "provision",
+$arguments = @("-m", "litellm_demo.entra_setup", "provision",
     "--tenant-id", $TenantId, "--subscription-id", $SubscriptionId,
     "--project-id", $ProjectId, "--prefix", $Prefix, "--key-vault-url", $KeyVaultUrl,
     "--profile", $Profile, "--output", $Output)

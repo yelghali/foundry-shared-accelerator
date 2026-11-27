@@ -5,7 +5,7 @@ import pytest
 import requests
 from azure.core.pipeline.transport import RequestsTransport
 
-from demos.apim_litellm.operator.private_foundry import PrivateFoundryAdapter
+from litellm_demo.private_foundry import PrivateFoundryAdapter
 
 
 def test_private_operator_transport_fixes_host_and_keeps_tokens_in_stdin():
@@ -14,7 +14,7 @@ def test_private_operator_transport_fixes_host_and_keeps_tokens_in_stdin():
         "POST", "https://demo.services.ai.azure.com/api/projects/demo/agents/test/versions",
         headers={"Authorization": "Bearer private-operator"}, json={"definition": {"kind": "prompt"}},
     ).prepare()
-    with patch("demos.apim_litellm.operator.private_foundry.subprocess.run") as run:
+    with patch("litellm_demo.private_foundry.subprocess.run") as run:
         run.return_value = Mock(returncode=0, stdout=json.dumps({
             "status": 200, "headers": {"content-type": "application/json", "content-encoding": "gzip"},
             "body": '{"version":"1"}',
@@ -35,7 +35,7 @@ def test_private_operator_transport_supports_azure_sdk_response_contract():
     session.mount("https://", PrivateFoundryAdapter("https://demo.services.ai.azure.com/api/projects/demo", "gateway"))
     transport = RequestsTransport(session=session)
     from azure.core.pipeline.transport import HttpRequest
-    with patch("demos.apim_litellm.operator.private_foundry.subprocess.run") as run:
+    with patch("litellm_demo.private_foundry.subprocess.run") as run:
         run.return_value = Mock(returncode=0, stdout=json.dumps({
             "status": 200, "headers": {"content-type": "application/json"}, "body": '{"name":"agent"}',
         }))
@@ -46,7 +46,7 @@ def test_private_operator_transport_supports_azure_sdk_response_contract():
 
 def test_private_operator_transport_failure_is_redacted():
     adapter = PrivateFoundryAdapter("https://demo.services.ai.azure.com/api/projects/demo", "gateway")
-    with patch("demos.apim_litellm.operator.private_foundry.subprocess.run", return_value=Mock(
+    with patch("litellm_demo.private_foundry.subprocess.run", return_value=Mock(
         returncode=1, stderr="private-token", stdout="private-secret",
     )):
         with pytest.raises(RuntimeError, match="output suppressed") as error:

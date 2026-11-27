@@ -14,7 +14,7 @@ from azure.ai.projects.models import (
 from azure.core.exceptions import ResourceNotFoundError
 from azure.identity import AzureCliCredential, AzureDeveloperCliCredential
 
-from accelerator.control import ControlPlane, save_receipt
+from litellm_demo.control import ControlPlane, save_receipt
 from .private_foundry import sdk_transport
 
 

@@ -16,8 +16,8 @@ from typing import Any
 import requests
 from azure.identity import AzureDeveloperCliCredential
 
-from accelerator.control import credential, load_json, save_receipt
-from accelerator.mcp import MCPClient, MCPProtocolError, parse_rpc_response
+from litellm_demo.control import credential, load_json, save_receipt
+from litellm_demo.mcp import MCPClient, MCPProtocolError, parse_rpc_response
 from .gateway_keys import NAMESPACES, read_key
 
 
@@ -57,6 +57,29 @@ def create_development_certificate(host: str, directory: Path) -> None:
         serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
     ))
     cert_path.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
+
+
+def mcp_authorization_environment(path: Path, namespace: str) -> dict[str, str]:
+    """Keep approved hosted callers separate from the gateway's own identity."""
+    policy = load_json(path)
+    if policy.get("namespace") not in {NAMESPACES["shared-service"], NAMESPACES["dedicated-application"]}:
+        raise ValueError("Hosted service caller policy must target a service-identity MCP namespace")
+    if policy.get("namespace") != namespace:
+        print(f"MCP caller policy targets {policy.get('namespace')}; no additional callers for {namespace}.")
+        return {}
+    result = {}
+    for field, variable in (
+        ("client_ids", "MCP_FOUNDRY_CLIENT_IDS"),
+        ("principal_ids", "MCP_FOUNDRY_PRINCIPAL_IDS"),
+    ):
+        values = policy.get(field)
+        if not isinstance(values, list) or not values or not all(isinstance(value, str) for value in values):
+            raise ValueError(f"MCP caller policy requires a nonempty {field} list")
+        for value in values:
+            uuid.UUID(value)
+        result[variable] = ",".join(values)
+    print(f"Using approved hosted MCP caller policy for namespace {namespace}.")
+    return result
 
 
 def prepare(args: argparse.Namespace) -> None:
@@ -104,6 +127,14 @@ def prepare(args: argparse.Namespace) -> None:
             "/ai" if scenario == "shared-service" else "/ai-" + scenario
         ),
     }
+    policy_path = Path(getattr(args, "mcp_authorization", None) or
+                       Path(args.deployment).with_name("hosted-mcp-authorization.json"))
+    if policy_path.is_file():
+        env.update(mcp_authorization_environment(policy_path, namespace))
+    elif getattr(args, "private_demo", False) and scenario == "shared-service" and not all(
+        env.get(name, "").strip() for name in ("MCP_FOUNDRY_CLIENT_IDS", "MCP_FOUNDRY_PRINCIPAL_IDS")
+    ):
+        raise ValueError("Private hosted MCP requires its approved caller policy (--mcp-authorization) or explicit caller allowlists")
     env["FOUNDRY_DECLARATIVE_A2A_CARD_URL"] = env["FOUNDRY_DECLARATIVE_A2A_URL"].rstrip("/") + "/agentCard/v1.0"
     if getattr(args, "enable_agent_responses", False):
         project = (getattr(args, "agent_responses_project_endpoint", None)
@@ -115,8 +146,6 @@ def prepare(args: argparse.Namespace) -> None:
                 project + "/agents/gateway-hosted-dual/endpoint/protocols/openai"
             ),
         })
-        if getattr(args, "private_demo", False):
-            env["PRIVATE_FOUNDRY_DEMO"] = "true"
     if scenario == "user-obo":
         if not args.identity:
             raise ValueError("user-obo requires the Entra setup receipt; no service-identity fallback is allowed.")
@@ -127,7 +156,6 @@ def prepare(args: argparse.Namespace) -> None:
         if not allowed_users:
             raise ValueError("An explicit permitted-user allowlist is required for the OBO sample.")
         env.update({
-            "BACKEND_AUTH_MODE": "user-obo",
             "MCP_AUTH_MODE": "user-obo",
             "OBO_TENANT_ID": identity["tenant_id"],
             "OBO_CLIENT_ID": identity["gateway"]["app_id"],
@@ -228,9 +256,9 @@ def verify(
         token = identity.get_token(scope).token
     key = virtual_key or read_key(scenario)
     headers = {"Authorization": "Bearer " + token, "x-litellm-api-key": "Bearer " + key}
-    hosted_alias = "hosted" if private_demo else "echo"
+    hosted_alias = "hosted"
     checks: dict[str, Any] = {}
-    for path in ["/v1/chat/completions", "/blob/mcp", "/a2a/echo"]:
+    for path in ["/v1/chat/completions", "/blob/mcp", "/a2a/hosted"]:
         response = requests.post(base + path, json={}, timeout=60)
         if response.status_code not in {401, 403}:
             raise RuntimeError(f"Anonymous {path} was not denied: {response.status_code}.")
@@ -359,7 +387,7 @@ def verify(
     rpc_headers = {**headers, "A2A-Version": "1.0"}
     request_id = 100
 
-    def rpc(method: str, params: dict[str, Any], agent: str = "echo") -> dict[str, Any]:
+    def rpc(method: str, params: dict[str, Any], agent: str = "hosted") -> dict[str, Any]:
         nonlocal request_id
         request_id += 1
         url = base + "/a2a/" + agent
@@ -372,7 +400,7 @@ def verify(
 
     sent = rpc("SendMessage", {
         "message": {"messageId": str(uuid.uuid4()), "role": "ROLE_USER", "parts": [{
-            "text": "Reply exactly PRIVATE_AGENT_OK" if private_demo else "hello",
+            "text": "Reply exactly HOSTED_AGENT_OK",
         }]},
         "configuration": {"returnImmediately": False},
     }, hosted_alias)
@@ -390,7 +418,7 @@ def verify(
     if task.get("status", {}).get("state") not in {"completed", "TASK_STATE_COMPLETED"}:
         raise RuntimeError(f"A2A task failed: {task.get('status')}.")
     texts = [part.get("text") for artifact in task.get("artifacts", []) for part in artifact.get("parts", [])]
-    expected_artifact = "PRIVATE_AGENT_OK" if private_demo else "Echo: hello"
+    expected_artifact = "HOSTED_AGENT_OK"
     if texts != [expected_artifact]:
         raise RuntimeError(f"A2A returned unexpected artifacts: {texts}.")
     result = rpc("GetTask", {"id": task_id}, hosted_alias)
@@ -491,6 +519,7 @@ def main() -> None:
     preparation.add_argument("--enable-agent-responses", action="store_true")
     preparation.add_argument("--agent-responses-project-endpoint")
     preparation.add_argument("--private-demo", action="store_true")
+    preparation.add_argument("--mcp-authorization", help="Approved namespace-scoped hosted MCP caller policy JSON.")
     preparation.add_argument("--deployment", required=True)
     preparation.add_argument("--a2a-endpoint", required=True)
     preparation.add_argument("--model-endpoint", required=True)

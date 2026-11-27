@@ -20,10 +20,10 @@ mcp_servers:
     transport: http
     allow_all_keys: false
 agents:
-  - agent_name: echo
+  - agent_name: hosted
     agent_card_params:
-      name: Echo
-      description: Foundry hosted echo agent
+      name: Hosted model-backed agent
+      description: Foundry hosted agent
       url: os.environ/FOUNDRY_A2A_URL
       protocolVersion: "1.0"
       version: "1.0.0"
@@ -32,10 +32,10 @@ agents:
       defaultInputModes: [text]
       defaultOutputModes: [text]
       skills:
-        - id: echo
-          name: Echo
-          description: Echo input without invoking a model
-          tags: [echo]
+        - id: chat
+          name: Chat
+          description: Invoke the registered hosted agent
+          tags: [chat]
     static_headers:
       a2a-version: "1.0"
     litellm_params:

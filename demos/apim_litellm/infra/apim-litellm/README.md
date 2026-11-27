@@ -37,7 +37,7 @@ Required: `subscription_id`, `tenant_id`, globally unique lowercase `name`, `pub
 * `workload_identities.litellm`, `.fastmcp`, and `["blob-seed"]`: `client_id`, `principal_id`, `resource_id`, `service_account`, `namespace`. The last identity belongs only to the private-network seed Job.
 * `apim`: `name`, `id`, `gateway_url`, `principal_id`, `caller_audience`, `litellm_token_audience`, `foundry_token_audience`.
 * `model_account_id`, `foundry_project_id`, and `blob.account_name`, `.endpoint`, `.container`.
-* `mcp_service_token_audience`, used only for A/B service authentication to FastMCP.
+* `mcp_service_token_audience`, used only for shared/dedicated service identities service authentication to FastMCP.
 
 `enable_identity_scenarios=true` adds `identity_scenarios` and `obo_key_vault`
 outputs, separate B/C gateway managed identities, namespace-specific federated
@@ -52,25 +52,26 @@ APIM owns exposure and caller JWT validation. LiteLLM OSS owns native virtual-ke
 admission and backend permissions. APIM preserves the caller Authorization
 header and forwards `x-litellm-api-key`; no APIM managed-identity token replaces
 the caller. The explicit `allow_development_management_audience` flag permits
-the management audience for A/B tests. Production uses a dedicated API audience.
+the management audience for shared/dedicated service identities tests. Production uses a dedicated API audience.
 The separate Entra setup script owns registrations and explicit consent; this
 Terraform root does not store app passwords or grant tenant consent.
 
 Global APIM policy validates tenant, audience and allowed client application IDs. Every released API must inherit `<base />` in inbound policy; do not override this protection. This is a client-application allowlist, not per-user authorization. Add user scopes/roles where required.
 
 No API/backend URL is fabricated before workloads exist. Set
-`litellm_backend_url` for A's `/ai` API and `scenario_backend_urls` for B/C's named
+`litellm_backend_url` for the shared-service `/ai` API and `scenario_backend_urls` for the other named
 APIs after deployment. Policies inherit JWT validation, require a virtual-key
-header and block administrative routes. C additionally requires
+header and block administrative routes. The delegated-user profile additionally requires
 `user_obo_gateway_audience` and delegated `access_as_user`. HTTPS is mandatory.
-`development_self_signed_tls` is A's explicit test bypass;
-`scenario_development_self_signed_tls` supports independent B/C TLS migration.
+`development_self_signed_tls` is the shared-service development bypass;
+`scenario_development_self_signed_tls` supports independent TLS migration for the other profiles.
 Production uses trusted matching certificates and disables each bypass.
 
-FastMCP and A2A are always routed through LiteLLM. A/B use native workload
-federation directly for Foundry agents; only their MCP calls use the HTTP
-adapter. C uses native MCP Entra OBO and custom in-process A2A OBO, with no
-adapter container. All agent URLs point directly to Foundry. C's gateway MI has
+FastMCP and A2A are always routed through LiteLLM. Shared/dedicated service identities use native workload
+federation directly for A2A agents and custom in-process Python for renewable
+MCP authentication. The delegated-user profile uses native MCP Entra OBO and
+custom in-process agent OBO. No authentication sidecar is deployed.
+All agent URLs point directly to Foundry. The delegated-user gateway managed identity has
 model/Vault access, not fallback agent access. APIM
 has no direct Foundry grant. Endpoint URLs remain explicit runtime inputs.
 

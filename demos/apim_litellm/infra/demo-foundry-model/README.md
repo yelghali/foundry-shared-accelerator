@@ -9,7 +9,7 @@ repository root. Supply the existing account ARM ID, actual Azure OpenAI
 endpoint, subscription and tenant:
 
 ```powershell
-.\demos\apim_litellm\scripts\Deploy-DemoModel.ps1 `
+.\scripts\Deploy-DemoModel.ps1 `
   -SubscriptionId "<subscription>" -TenantId "<tenant>" `
   -ModelAccountId "<existing-account-ARM-ID>" `
   -ModelEndpoint "https://<account>.openai.azure.com/"
@@ -23,8 +23,8 @@ model/version/SKU/capacity explicitly as needed. The script does not select a
 different model silently or change public/private network configuration.
 
 The operator needs model-deployment write access. Callers separately need
-`Cognitive Services OpenAI User`. Hosted Echo does not need a model, but model
-calls and the declarative agent do. If that agent uses a different model account
+`Cognitive Services OpenAI User`. Model calls and both the hosted and prompt
+agents need an approved model deployment. If an agent uses a different model account
 than LiteLLM's model route, provision/authorize its project model separately.
 
 State and the nonsecret `model.json` receipt are under

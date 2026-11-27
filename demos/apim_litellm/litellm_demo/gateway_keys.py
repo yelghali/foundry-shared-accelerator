@@ -170,7 +170,7 @@ def provision_keys(kube: Kubernetes, scenario: str, *, agent_responses: bool = F
     servers = catalog_rows(private_api(kube, "GET", "/v1/mcp/server"))
     agents = catalog_rows(private_api(kube, "GET", "/v1/agents"))
     server_ids = [str(server["server_id"]) for server in servers if server.get("server_name", server.get("name")) == "blob"]
-    allowed_agents = {"echo", "declarative", "hosted"} if agent_responses else {"echo", "declarative"}
+    allowed_agents = {"declarative", "hosted"}
     agent_ids = [str(agent["agent_id"]) for agent in agents if agent.get("agent_name") in allowed_agents]
     if len(server_ids) != 1 or not agent_ids:
         raise ValueError("The expected Blob MCP server and agent registrations are not ready.")

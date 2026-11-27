@@ -20,8 +20,8 @@ $ErrorActionPreference = "Stop"
 if ($ModelAccountId -notmatch "^/subscriptions/$SubscriptionId/resourceGroups/[^/]+/providers/Microsoft.CognitiveServices/accounts/[^/]+$") {
     throw "ModelAccountId must identify an existing account in SubscriptionId."
 }
-$root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
-$stack = Join-Path $root "demos\apim_litellm\infra\demo-foundry-model"
+$root = Split-Path -Parent $PSScriptRoot
+$stack = Join-Path $root "infra\demo-foundry-model"
 $accountName = $ModelAccountId.Split('/')[-1]
 $directory = Join-Path $root ".local\demo-foundry-model\$accountName\$DeploymentName"
 New-Item -ItemType Directory -Force $directory | Out-Null

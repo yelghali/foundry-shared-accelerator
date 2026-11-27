@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1030" viewBox="0 0 1440 1030" role="img" aria-labelledby="title description">
   <title id="title">Standalone private Foundry demo with LiteLLM</title>
-  <desc id="description">Public APIM and LiteLLM call private-only Foundry models and prompt/hosted agents. Both agents expose A2A and Responses. The hosted agent uses its own runtime identity to call private AKS MCP. The MCP hop is HTTP within the VNet, not end-to-end TLS. Private ACR supplies the hosted image. A/B/C authentication remains separate from network isolation.</desc>
+  <desc id="description">Public APIM and LiteLLM call private-only Foundry models and prompt/hosted agents. Both agents expose A2A and Responses. The hosted agent uses its own runtime identity to call private AKS MCP. The MCP hop is HTTP within the VNet, not end-to-end TLS. Private ACR supplies the hosted image. Shared service identity, dedicated service identity and delegated user identity remain separate from network isolation.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#495057"/></marker>
     <style>
@@ -15,7 +15,7 @@
   </defs>
   <rect width="1440" height="1030" fill="#ffffff"/>
   <text x="40" y="45" class="title">Standalone demo: public gateway, private Foundry and private MCP</text>
-  <text x="40" y="82" class="body">Separate demo lifecycle. No Day 0/platform or team-onboarding integration.</text>
+  <text x="40" y="82" class="body">Folder-local configuration, tooling and infrastructure. No accelerator dependencies.</text>
   <rect x="40" y="130" width="240" height="100" rx="12" fill="#CFE4FA" stroke="#0078D4" stroke-width="2"/>
   <text x="60" y="165" class="heading">Consumer app / user</text>
   <text x="60" y="200" class="body">Entra JWT + virtual key</text>
@@ -25,10 +25,10 @@
   <rect x="680" y="130" width="340" height="100" rx="12" fill="#DFF6DD" stroke="#107C10" stroke-width="2"/>
   <text x="700" y="165" class="heading">LiteLLM OSS on AKS</text>
   <text x="700" y="195" class="body">Native keys; fixed backend aliases</text>
-  <text x="700" y="218" class="small">C agent OBO: custom Python inside this process</text>
+  <text x="700" y="218" class="small">Custom in-process agent OBO; no sidecars</text>
   <rect x="1100" y="130" width="300" height="100" rx="12" fill="#E8DAEF" stroke="#5C2D91" stroke-width="2"/>
   <text x="1120" y="165" class="heading">Entra ID + private Key Vault</text>
-  <text x="1120" y="200" class="body">WI / user OBO; C secret via CSI</text>
+  <text x="1120" y="200" class="small">Pod federation; OBO secret via CSI</text>
   <path class="line" d="M280 180H340"/>
   <path class="line" d="M580 180H680"/>
   <path class="line config" d="M1020 180H1100"/>
@@ -68,7 +68,7 @@
   <text x="790" y="766" class="small">Private HTTP 8000; no public IP</text>
   <rect x="1090" y="670" width="220" height="110" rx="12" fill="#F3F2F1" stroke="#495057" stroke-width="2"/>
   <text x="1110" y="705" class="heading">Private Blob</text>
-  <text x="1110" y="740" class="body">FastMCP read-only WI</text>
+  <text x="1110" y="740" class="small">FastMCP read-only identity</text>
   <path class="line" d="M890 525V670"/>
   <text x="905" y="600" class="small">Hosted runtime identity</text>
   <path class="line" d="M850 525V610H565V670"/>
@@ -78,9 +78,9 @@
   <text x="1100" y="620" class="small">LiteLLM also calls MCP</text>
   <text x="60" y="820" class="small">Published prompt version is model-only. Its experimental native private-MCP binding is not enabled or certified.</text>
 
-  <text x="40" y="875" class="body">A: shared LiteLLM managed identity. B: separate LiteLLM managed identity. C: delegated user for MCP and agent invocation.</text>
-  <text x="40" y="905" class="body">No auth sidecars. A/B MCP: custom Python auth inside LiteLLM. C MCP: native LiteLLM user OBO.</text>
-  <text x="40" y="935" class="body">C agent OBO: our Python inside LiteLLM, not native agent OBO or a sidecar. All agent calls go directly to Foundry.</text>
+  <text x="40" y="875" class="body">Shared service identity | Dedicated service identity | Delegated user identity for MCP and agent invocation</text>
+  <text x="40" y="905" class="body">No sidecars. Service MCP: custom in-process workload auth. Delegated MCP: native LiteLLM user OBO.</text>
+  <text x="40" y="935" class="body">Models / service A2A: native federation. Agent OBO: custom in-process Python. All agent calls go directly to Foundry.</text>
   <text x="40" y="965" class="body">Hosted downstream model/MCP: hosted runtime identity. Blob: FastMCP identity. Direct model calls: LiteLLM identity.</text>
   <text x="40" y="1005" class="small">2026-11-26: no-sidecar MCP and background A2A jobs verified. Private MCP TLS and cross-user task isolation remain limitations.</text>
 </svg>

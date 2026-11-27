@@ -1,7 +1,7 @@
 terraform {
   required_version = ">= 1.9"
   backend "local" {
-    path = "../../../../.local/apim-litellm/terraform.tfstate"
+    path = "../../.local/apim-litellm/terraform.tfstate"
   }
   required_providers {
     azurerm = { source = "hashicorp/azurerm", version = "~> 5.9" }

@@ -138,6 +138,7 @@ def test_profile_rendering(environment, monkeypatch, scenario, namespace, instan
     assert not config["mcp_servers"]["blob"]["allow_all_keys"]
     assert config["mcp_servers"]["blob"]["url"] == f"http://fastmcp.{namespace}.svc.cluster.local:8000/mcp"
     agent = config["agents"][0]
+    assert agent["agent_name"] == "hosted"
     assert agent["agent_card_params"]["url"] == "https://foundry.example/agents/echo/endpoint/protocols/a2a"
     assert agent["litellm_params"]["agent_card_path"] == "agentCard/v1.0"
     assert agent["static_headers"] == {"a2a-version": "1.0"}
@@ -171,7 +172,12 @@ def test_invalid_profile_inputs_fail_closed(environment, monkeypatch, name, valu
         load("render").render()
 
 
-def test_agent_responses_aliases_are_opt_in_and_fixed_to_foundry(environment, monkeypatch):
+@pytest.mark.parametrize("scenario", ["shared-service", "user-obo"])
+def test_agent_responses_aliases_are_opt_in_and_fixed_to_foundry(environment, monkeypatch, scenario):
+    monkeypatch.setenv("AUTHENTICATION_SCENARIO", scenario)
+    if scenario == "user-obo":
+        monkeypatch.setenv("GATEWAY_NAMESPACE", "gateway-user-obo")
+    monkeypatch.setenv("FOUNDRY_DECLARATIVE_A2A_URL", "https://demo.services.ai.azure.com/declarative/a2a")
     monkeypatch.setenv("ENABLE_AGENT_RESPONSES", "true")
     monkeypatch.setenv("FOUNDRY_PROMPT_RESPONSES_BASE", "https://demo.services.ai.azure.com/api/projects/demo")
     monkeypatch.setenv("FOUNDRY_HOSTED_RESPONSES_BASE", "https://demo.services.ai.azure.com/api/projects/demo/agents/hosted/endpoint/protocols/openai")
@@ -180,6 +186,16 @@ def test_agent_responses_aliases_are_opt_in_and_fixed_to_foundry(environment, mo
     models = {entry["model_name"]: entry["litellm_params"] for entry in config["model_list"]}
     assert models["prompt-agent-responses"]["model"] == "openai/gpt-4o-mini"
     assert models["hosted-agent-responses"]["model"] == "openai/gateway-hosted-dual"
+    assert [agent["agent_name"] for agent in config["agents"]] == ["hosted", "declarative"]
+    hosted = config["agents"][0]
+    assert hosted["agent_card_params"]["url"] == (
+        "https://demo.services.ai.azure.com/api/projects/demo/agents/hosted/endpoint/protocols/a2a"
+    )
+    if scenario == "user-obo":
+        assert hosted["extra_headers"] == ["Authorization"]
+        assert hosted["litellm_params"] == {"agent_card_path": "agentCard/v1.0", "foundry_user_obo": True}
+    else:
+        assert hosted["litellm_params"]["azure_ad_token"] == "oidc/azure/api://AzureADTokenExchange"
     monkeypatch.setenv("FOUNDRY_HOSTED_RESPONSES_BASE", "http://caller.example/")
     with pytest.raises(ValueError, match="Foundry HTTPS"):
         load("render").render()

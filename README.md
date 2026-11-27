@@ -128,7 +128,8 @@ This is an operational **dev** profile, not a production HA or billing
 solution. State and generated receipts are local under `.local/`; protect
 state and use a remote backend for production. The default native-gateway scenario does not deploy hosted agents; the optional
 [standalone APIM/LiteLLM demo](demos/apim_litellm/README.md) includes private
-model-backed A2A/Responses agents and preserves the hosted Echo transport sample.
+model-backed A2A/Responses agents. Its source and dependencies are self-contained
+in that folder and can be extracted without the accelerator lifecycle code.
 A self-service onboarding form is not implemented. Deployed resources remain running and
 can incur charges; nothing is automatically destroyed. See the
 [architecture](docs/architecture-plan.md) and [regional guide](docs/regional-deployment.md)

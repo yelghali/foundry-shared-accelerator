@@ -8,7 +8,7 @@ param(
     [string]$IdentityFile,
     [ValidateSet("shared-service", "dedicated-application", "user-obo")]
     [string[]]$Scenarios = @("shared-service", "dedicated-application", "user-obo"),
-    [string]$ImageTag = "20261126a",
+    [string]$ImageTag = "20261127a",
     [ValidateSet("public", "private")][string]$Exposure = "public",
     [ValidateSet("azurecli", "azd")][string]$KubernetesLoginMethod = "azurecli",
     [switch]$SkipBuild,
@@ -19,7 +19,7 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-$root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+$root = Split-Path -Parent $PSScriptRoot
 $variablesPath = (Resolve-Path $VariablesFile).Path
 $settings = Get-Content -LiteralPath $variablesPath -Raw | ConvertFrom-Json
 $local = Join-Path $root ".local\apim-litellm"

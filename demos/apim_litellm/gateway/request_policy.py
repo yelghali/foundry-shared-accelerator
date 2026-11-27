@@ -142,6 +142,8 @@ class RegisteredBackendPolicy(CustomLogger):
         return data
 
 
+# config.yaml imports this singleton as its callback; construction installs the
+# capture hook before LiteLLM can enrich away caller-supplied override fields.
 policy = RegisteredBackendPolicy()
 
 

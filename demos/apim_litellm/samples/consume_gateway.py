@@ -10,9 +10,9 @@ from urllib.parse import urlsplit, urlunsplit
 
 import requests
 
-from accelerator.control import load_json
-from demos.apim_litellm.operator.entra_setup import cached_user_token
-from accelerator.mcp import MCPClient, parse_rpc_response
+from litellm_demo.control import load_json
+from litellm_demo.entra_setup import cached_user_token
+from litellm_demo.mcp import MCPClient, parse_rpc_response
 
 
 DEMO_AGENTS = {
@@ -20,7 +20,6 @@ DEMO_AGENTS = {
     "hosted-agent-responses": "gateway-hosted-dual",
     "declarative": "gateway-declarative",
     "hosted": "gateway-hosted-dual",
-    "echo": "gateway-a2a-echo",
 }
 
 
@@ -123,8 +122,8 @@ def main() -> None:
         "model", "mcp", "hosted-agent", "declarative-agent",
         "hosted-agent-responses", "prompt-agent-responses",
     ], required=True)
-    parser.add_argument("--agent-name", choices=["echo", "hosted"],
-                        help="A2A hosted alias; use hosted for the private demo, echo for the legacy transport sample.")
+    parser.add_argument("--agent-name", choices=["hosted"],
+                        help="Hosted A2A alias; the current demo exposes hosted.")
     parser.add_argument("--prompt", default="Reply exactly HELLO")
     parser.add_argument("--identity")
     parser.add_argument("--user-token-cache")
@@ -187,7 +186,7 @@ def main() -> None:
         report_agent(payload, args.kind, "Responses")
         print(json.dumps(payload, indent=2))
         return
-    agent = (args.agent_name or "echo") if args.kind == "hosted-agent" else "declarative"
+    agent = (args.agent_name or "hosted") if args.kind == "hosted-agent" else "declarative"
     url = base + "/a2a/" + agent
     print(f"POST {url} [A2A SendMessage]", file=sys.stderr, flush=True)
     message_id = str(uuid.uuid4())

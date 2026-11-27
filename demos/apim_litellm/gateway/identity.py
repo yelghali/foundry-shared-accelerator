@@ -1,4 +1,4 @@
-"""Tenant-pinned Entra JWT verification shared by the two ingress boundaries."""
+"""Tenant-pinned Entra verification for FastMCP and custom agent OBO."""
 
 import asyncio
 import os

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1020" viewBox="0 0 1440 1020" role="img" aria-labelledby="title description">
   <title id="title">Standalone demo: app registrations and consent</title>
-  <desc id="description">Scenario C has a public test-client registration, a confidential gateway API/client registration, and an MCP resource API registration. The gateway also requests delegated access to the existing Azure AI API. Combined consent uses the gateway's knownClientApplications list and a default-scope interactive login. Consent never replaces backend authorization. This is a permission map, not an HTTP request topology.</desc>
+  <desc id="description">Delegated user identity uses a public test-client registration, a confidential gateway API/client registration, and an MCP resource API registration. The gateway also requests delegated access to the existing Azure AI API. Combined consent uses the gateway's knownClientApplications list and a default-scope interactive login. Consent never replaces backend authorization. This is a permission map, not an HTTP request topology.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#495057"/></marker>
     <style>
@@ -14,7 +14,7 @@
     </style>
   </defs>
   <rect width="1440" height="1020" fill="#ffffff"/>
-  <text x="40" y="45" class="title">Standalone demo: app registrations and consent for C</text>
+  <text x="40" y="45" class="title">Delegated user identity: app registrations and consent</text>
   <text x="40" y="80" class="body">Permission/configuration map, NOT extra HTTP services. Agent runtime remains LiteLLM directly to Foundry.</text>
   <path class="line config" d="M650 240V150H215V240"/>
   <text x="350" y="125" class="body">Gateway knownClientApplications includes the public client app ID</text>
@@ -30,7 +30,7 @@
   <text x="560" y="278" class="heading">Confidential gateway app</text>
   <text x="560" y="320" class="body">API exposes access_as_user</text>
   <text x="560" y="355" class="body">OBO client requests downstream scopes</text>
-  <text x="560" y="390" class="body">Different identity from the gateway WI</text>
+  <text x="560" y="390" class="body">Distinct from gateway pod identity</text>
 
   <rect x="1110" y="240" width="290" height="190" rx="12" fill="#E8DAEF" stroke="#5C2D91" stroke-width="2"/>
   <text x="1130" y="278" class="heading">MCP API app</text>
@@ -60,7 +60,7 @@
   <rect x="1110" y="650" width="290" height="170" rx="12" fill="#F3F2F1" stroke="#495057" stroke-width="2"/>
   <text x="1130" y="690" class="heading">Private Key Vault</text>
   <text x="1130" y="730" class="body">Gateway app client secret</text>
-  <text x="1130" y="765" class="body">AKS WI + CSI delivery</text>
+  <text x="1130" y="765" class="body">Pod identity + CSI delivery</text>
   <text x="1130" y="800" class="body">No secret in YAML/state</text>
   <path class="line config" d="M960 395H1035V735H1110"/>
   <text x="1050" y="485" class="small">Credential custody;</text>
@@ -68,5 +68,5 @@
 
   <text x="40" y="885" class="body">Solid arrows: configured delegated API permissions. Dashed arrows: configuration / credential relationships.</text>
   <text x="40" y="930" class="body">Consent allows delegation; it does not grant Foundry RBAC or bypass MCP user/client allowlists.</text>
-  <text x="40" y="975" class="body">Direct model calls use gateway WI. Hosted internal calls use runtime identity. A/B service calls need no custom OBO apps.</text>
+  <text x="40" y="975" class="body">Models: native pod federation. Service identities need no OBO apps. Delegated MCP: native OBO; agents: custom OBO.</text>
 </svg>

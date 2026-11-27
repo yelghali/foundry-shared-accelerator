@@ -1,7 +1,7 @@
 """In-process Foundry compatibility for the pinned LiteLLM A2A gateway.
 
 Workload authentication is native LiteLLM OIDC. User OBO remains an explicit
-custom integration. Neither path sends agent traffic through the HTTP adapter.
+custom integration. Both paths call Foundry directly, without a sidecar.
 """
 
 import os

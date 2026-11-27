@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 
-from demos.apim_litellm.operator.gateway_keys import bootstrap_database, provision_keys
+from litellm_demo.gateway_keys import bootstrap_database, provision_keys
 
 
 class GatewayKeyTests(unittest.TestCase):
@@ -21,13 +21,13 @@ class GatewayKeyTests(unittest.TestCase):
             bootstrap_database(kube)
         kube.store_secret.assert_not_called()
 
-    @patch("demos.apim_litellm.operator.gateway_keys.private_api")
+    @patch("litellm_demo.gateway_keys.private_api")
     def test_virtual_key_rerun_updates_permissions_without_replacing_keys(self, api):
         kube = Mock(namespace="gateway")
         kube.secret.return_value = {"application": "sk-one", "models-only": "sk-two"}
         api.side_effect = [
             [{"server_name": "blob", "server_id": "blob-id"}],
-            [{"agent_name": "echo", "agent_id": "hosted-id"},
+            [{"agent_name": "hosted", "agent_id": "hosted-id"},
              {"agent_name": "declarative", "agent_id": "prompt-id"}],
             {}, {},
         ]
@@ -40,7 +40,7 @@ class GatewayKeyTests(unittest.TestCase):
         self.assertEqual(calls[3].args[3]["object_permission"], {"mcp_servers": ["no-mcp-servers"], "agents": []})
         self.assertNotIn("sk-one", json.dumps(result))
 
-    @patch("demos.apim_litellm.operator.gateway_keys.private_api")
+    @patch("litellm_demo.gateway_keys.private_api")
     def test_failed_catalog_cannot_mint_unrestricted_key(self, api):
         api.side_effect = [[], []]
         kube = Mock(namespace="gateway")

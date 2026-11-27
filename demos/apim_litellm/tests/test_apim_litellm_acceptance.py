@@ -6,7 +6,7 @@ from copy import deepcopy
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from demos.apim_litellm.operator.apim_litellm import verify, completed_a2a_text, completed_response_text, main
+from litellm_demo.apim_litellm import verify, completed_a2a_text, completed_response_text, main
 
 
 DEPLOYMENT = {"apim": {"gateway_url": "https://gateway.example.com", "caller_audience": "api://gateway"}}
@@ -34,9 +34,9 @@ class AcceptanceTests(unittest.TestCase):
 
     def test_user_consent_configuration_does_not_replace_an_actual_user_login(self):
         identity = {"consent_mode": "user", "user_consent_configured": True, "admin_consent_requested": False}
-        with patch("demos.apim_litellm.operator.apim_litellm.credential"), \
-             patch("demos.apim_litellm.operator.apim_litellm.read_key") as key, \
-             patch("demos.apim_litellm.operator.apim_litellm.requests.post") as post:
+        with patch("litellm_demo.apim_litellm.credential"), \
+             patch("litellm_demo.apim_litellm.read_key") as key, \
+             patch("litellm_demo.apim_litellm.requests.post") as post:
             with self.assertRaisesRegex(ValueError, "actual user login"):
                 verify(DEPLOYMENT, scenario="user-obo", identity_receipt=identity)
         key.assert_not_called()
@@ -45,10 +45,10 @@ class AcceptanceTests(unittest.TestCase):
     def test_user_consent_acceptance_uses_the_selected_user_cache_not_operator_identity(self):
         identity = {"consent_mode": "user", "user_consent_configured": True, "admin_consent_requested": False,
                     "gateway": {"scope": "api://gateway/access_as_user"}}
-        with patch("demos.apim_litellm.operator.apim_litellm.credential") as operator, \
-             patch("demos.apim_litellm.operator.entra_setup.cached_user_token", return_value="delegated-user") as cached, \
-             patch("demos.apim_litellm.operator.apim_litellm.read_key", return_value="sk-test"), \
-             patch("demos.apim_litellm.operator.apim_litellm.requests.post", side_effect=RuntimeError("stop after user selection")):
+        with patch("litellm_demo.apim_litellm.credential") as operator, \
+             patch("litellm_demo.entra_setup.cached_user_token", return_value="delegated-user") as cached, \
+             patch("litellm_demo.apim_litellm.read_key", return_value="sk-test"), \
+             patch("litellm_demo.apim_litellm.requests.post", side_effect=RuntimeError("stop after user selection")):
             with self.assertRaisesRegex(RuntimeError, "stop after user selection"):
                 verify(DEPLOYMENT, scenario="user-obo", identity_receipt=identity, user_token_cache="encrypted")
         cached.assert_called_once_with(identity, "encrypted")
@@ -64,7 +64,7 @@ class AcceptanceTests(unittest.TestCase):
             receipt.write_text('{"status":"passed"}', encoding="utf-8")
             with patch.dict(os.environ, {"KUBECONFIG": "unrelated-original-context"}), \
                  patch("sys.argv", ["apim_litellm", "verify", "--deployment", str(deployment), "--output", str(receipt)]), \
-                 patch("demos.apim_litellm.operator.apim_litellm.verify", side_effect=RuntimeError("explicit live failure")):
+                 patch("litellm_demo.apim_litellm.verify", side_effect=RuntimeError("explicit live failure")):
                 with self.assertRaisesRegex(RuntimeError, "explicit live failure"):
                     main()
                 self.assertEqual(os.environ["KUBECONFIG"], "unrelated-original-context")
@@ -86,7 +86,7 @@ class AcceptanceTests(unittest.TestCase):
         task = {
             "id": "task-1",
             "status": {"state": "TASK_STATE_COMPLETED"},
-            "artifacts": [{"artifactId": "artifact-1", "parts": [{"text": "Echo: hello"}]}],
+            "artifacts": [{"artifactId": "artifact-1", "parts": [{"text": "HOSTED_AGENT_OK"}]}],
         }
         replies = [response({}, 401) for _ in range(3)]
         if permissions:
@@ -98,11 +98,11 @@ class AcceptanceTests(unittest.TestCase):
             response({"jsonrpc": "2.0", "id": 101, **(task_result or {"result": {"task": task}})}),
             response({"jsonrpc": "2.0", "id": 102, "result": saved_result or {"task": task}}),
         ]
-        with patch("demos.apim_litellm.operator.apim_litellm.credential") as identity, \
-             patch("demos.apim_litellm.operator.apim_litellm.read_key", return_value="sk-test-virtual"), \
-             patch("demos.apim_litellm.operator.apim_litellm.requests.get", return_value=response({}, 401)), \
-             patch("demos.apim_litellm.operator.apim_litellm.requests.post", side_effect=replies), \
-             patch("demos.apim_litellm.operator.apim_litellm.MCPClient") as mcp:
+        with patch("litellm_demo.apim_litellm.credential") as identity, \
+             patch("litellm_demo.apim_litellm.read_key", return_value="sk-test-virtual"), \
+             patch("litellm_demo.apim_litellm.requests.get", return_value=response({}, 401)), \
+             patch("litellm_demo.apim_litellm.requests.post", side_effect=replies), \
+             patch("litellm_demo.apim_litellm.MCPClient") as mcp:
             identity.return_value.get_token.return_value.token = "test-token"
             mcp.return_value.headers = {}
             mcp.return_value.call.side_effect = [
@@ -122,7 +122,7 @@ class AcceptanceTests(unittest.TestCase):
 
     def test_completed_native_task_and_saved_artifacts_are_required(self):
         result = self.run_acceptance(None)
-        self.assertEqual(result["checks"]["a2a"]["artifact"], "Echo: hello")
+        self.assertEqual(result["checks"]["a2a"]["artifact"], "HOSTED_AGENT_OK")
         self.assertTrue(result["checks"]["a2a"]["saved_task_retrieved"])
         with self.assertRaisesRegex(RuntimeError, "saved Task differs"):
             self.run_acceptance(None, {"task": {"id": "different", "artifacts": []}})
@@ -137,7 +137,7 @@ class AcceptanceTests(unittest.TestCase):
             "status": {"state": "TASK_STATE_COMPLETED"},
             "artifacts": [{
                 "artifactId": "artifact-1",
-                "parts": [{"text": "Echo: hello", "mediaType": "text/plain"}],
+                "parts": [{"text": "HOSTED_AGENT_OK", "mediaType": "text/plain"}],
             }],
         }
         result = self.run_acceptance(None, {"task": saved})
@@ -157,7 +157,7 @@ class AcceptanceTests(unittest.TestCase):
         legacy_task = {
             "id": "task-1",
             "status": {"state": "completed"},
-            "artifacts": [{"parts": [{"text": "Echo: hello"}]}],
+            "artifacts": [{"parts": [{"text": "HOSTED_AGENT_OK"}]}],
         }
         with self.assertRaisesRegex(RuntimeError, "native A2A 1.0 SendMessage task envelope"):
             self.run_acceptance({"result": legacy_task})

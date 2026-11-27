@@ -3,7 +3,7 @@
   "version": 2,
   "source": "copilot",
   "elements": [
-    {"id":"title","type":"text","x":40,"y":15,"width":1360,"height":65,"text":"Standalone demo: app registrations and consent for C","fontSize":26,"fontFamily":2,"strokeColor":"#000000"},
+    {"id":"title","type":"text","x":40,"y":15,"width":1360,"height":65,"text":"Delegated user identity: app registrations and consent","fontSize":26,"fontFamily":2,"strokeColor":"#000000"},
     {"id":"subtitle","type":"text","x":40,"y":75,"width":1360,"height":40,"text":"Permission/configuration map, NOT extra HTTP services. Agent runtime remains LiteLLM directly to Foundry.","fontSize":16,"fontFamily":2,"strokeColor":"#000000"},
     {"id":"known-client","type":"arrow","x":650,"y":240,"width":435,"height":90,"points":[[0,0],[0,-90],[-435,-90],[-435,0]],"strokeColor":"#495057","strokeWidth":2,"strokeStyle":"dashed","endArrowhead":"arrow"},
     {"id":"known-label","type":"text","x":350,"y":110,"width":900,"height":40,"text":"Gateway knownClientApplications includes the public client app ID","fontSize":16,"fontFamily":2,"strokeColor":"#000000"},
@@ -11,7 +11,7 @@
     {"id":"client","type":"rectangle","x":40,"y":240,"width":350,"height":190,"strokeColor":"#0078D4","backgroundColor":"#CFE4FA","fillStyle":"solid","strokeWidth":2,"boundElements":[{"type":"text","id":"client-text"}]},
     {"id":"client-text","type":"text","x":55,"y":255,"width":320,"height":160,"text":"Public test-client app\nInteractive user login\nNo client secret\nCalls gateway API","fontSize":16,"fontFamily":2,"strokeColor":"#000000","containerId":"client","textAlign":"center","verticalAlign":"middle"},
     {"id":"gateway","type":"rectangle","x":540,"y":240,"width":420,"height":190,"strokeColor":"#107C10","backgroundColor":"#DFF6DD","fillStyle":"solid","strokeWidth":2,"boundElements":[{"type":"text","id":"gateway-text"}]},
-    {"id":"gateway-text","type":"text","x":555,"y":255,"width":390,"height":160,"text":"Confidential gateway app\nAPI: access_as_user\nClient: downstream OBO\nDifferent from gateway WI","fontSize":16,"fontFamily":2,"strokeColor":"#000000","containerId":"gateway","textAlign":"center","verticalAlign":"middle"},
+    {"id":"gateway-text","type":"text","x":555,"y":255,"width":390,"height":160,"text":"Confidential gateway app\nAPI: access_as_user\nClient: downstream OBO\nDistinct from gateway pod identity","fontSize":16,"fontFamily":2,"strokeColor":"#000000","containerId":"gateway","textAlign":"center","verticalAlign":"middle"},
     {"id":"mcp","type":"rectangle","x":1110,"y":240,"width":290,"height":190,"strokeColor":"#5C2D91","backgroundColor":"#E8DAEF","fillStyle":"solid","strokeWidth":2,"boundElements":[{"type":"text","id":"mcp-text"}]},
     {"id":"mcp-text","type":"text","x":1125,"y":255,"width":260,"height":160,"text":"MCP API app\nExposes tools.read\nFastMCP validates user,\nclient, audience and scope","fontSize":16,"fontFamily":2,"strokeColor":"#000000","containerId":"mcp","textAlign":"center","verticalAlign":"middle"},
     {"id":"client-gateway","type":"arrow","x":390,"y":340,"width":150,"height":0,"points":[[0,0],[150,0]],"strokeColor":"#495057","strokeWidth":2,"endArrowhead":"arrow"},
@@ -26,12 +26,12 @@
     {"id":"consent","type":"rectangle","x":40,"y":650,"width":350,"height":170,"strokeColor":"#F7630C","backgroundColor":"#FFF4CE","fillStyle":"solid","strokeWidth":2,"boundElements":[{"type":"text","id":"consent-text"}]},
     {"id":"consent-text","type":"text","x":55,"y":665,"width":320,"height":140,"text":"Consent choices\nCustom scopes default to Admin\nUser: explicit demo opt-in\nTenant policy still applies","fontSize":14,"fontFamily":2,"strokeColor":"#000000","containerId":"consent","textAlign":"center","verticalAlign":"middle"},
     {"id":"vault","type":"rectangle","x":1110,"y":650,"width":290,"height":170,"strokeColor":"#495057","backgroundColor":"#F3F2F1","fillStyle":"solid","strokeWidth":2,"boundElements":[{"type":"text","id":"vault-text"}]},
-    {"id":"vault-text","type":"text","x":1125,"y":665,"width":260,"height":140,"text":"Private Key Vault\nGateway app client secret\nAKS WI + CSI delivery\nNo secret in YAML/state","fontSize":14,"fontFamily":2,"strokeColor":"#000000","containerId":"vault","textAlign":"center","verticalAlign":"middle"},
+    {"id":"vault-text","type":"text","x":1125,"y":665,"width":260,"height":140,"text":"Private Key Vault\nGateway app client secret\nPod identity + CSI delivery\nNo secret in YAML/state","fontSize":14,"fontFamily":2,"strokeColor":"#000000","containerId":"vault","textAlign":"center","verticalAlign":"middle"},
     {"id":"credential-custody","type":"arrow","x":960,"y":395,"width":150,"height":340,"points":[[0,0],[75,0],[75,340],[150,340]],"strokeColor":"#495057","strokeWidth":2,"strokeStyle":"dashed","endArrowhead":"arrow"},
     {"id":"custody-label","type":"text","x":1050,"y":465,"width":350,"height":70,"text":"Credential custody;\nnot another runtime hop","fontSize":14,"fontFamily":2,"strokeColor":"#000000"},
     {"id":"legend","type":"text","x":40,"y":860,"width":1360,"height":40,"text":"Solid: delegated API permissions. Dashed: configuration / credential relationships.","fontSize":16,"fontFamily":2,"strokeColor":"#000000"},
     {"id":"rbac-note","type":"text","x":40,"y":910,"width":1360,"height":40,"text":"Consent allows delegation; it does not grant Foundry RBAC or bypass MCP user/client allowlists.","fontSize":16,"fontFamily":2,"strokeColor":"#000000"},
-    {"id":"models-note","type":"text","x":40,"y":960,"width":1360,"height":40,"text":"Direct models use gateway WI. Hosted internal calls use runtime identity. A/B service calls need no custom OBO apps.","fontSize":16,"fontFamily":2,"strokeColor":"#000000"}
+    {"id":"models-note","type":"text","x":40,"y":960,"width":1360,"height":40,"text":"Models: native pod federation. Service identities need no OBO apps. Delegated MCP: native OBO; agents: custom OBO.","fontSize":16,"fontFamily":2,"strokeColor":"#000000"}
   ],
   "appState": {"viewBackgroundColor":"#ffffff","gridSize":20},
   "files": {}

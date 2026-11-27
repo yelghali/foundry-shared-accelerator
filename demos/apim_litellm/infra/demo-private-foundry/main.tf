@@ -1,7 +1,7 @@
 terraform {
   required_version = ">= 1.9"
   backend "local" {
-    path = "../../../../.local/demo-private-foundry/terraform.tfstate"
+    path = "../../.local/demo-private-foundry/terraform.tfstate"
   }
   required_providers {
     azapi   = { source = "Azure/azapi", version = "~> 2.8" }
@@ -22,7 +22,7 @@ variable "gateway_model_principal_ids" {
   default = []
 }
 variable "gateway_agent_principal_ids" {
-  description = "Service identities for A/B only. Do not grant the C gateway a delegated-agent fallback."
+  description = "Service identities for shared/dedicated service identities only. Do not grant the delegated-user gateway a delegated-agent fallback."
   type        = set(string)
   default     = []
 }
@@ -140,7 +140,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "existing" {
 }
 
 module "foundry" {
-  source                 = "../../../../infra/modules/foundry"
+  source                 = "../modules/foundry"
   name                   = var.name
   resource_group_id      = azurerm_resource_group.demo.id
   resource_group_name    = azurerm_resource_group.demo.name
@@ -158,7 +158,7 @@ module "foundry" {
 }
 
 module "project" {
-  source                  = "../../../../infra/modules/project"
+  source                  = "../modules/project"
   name                    = var.project_name
   account_id              = module.foundry.account.id
   account_endpoint        = module.foundry.account.endpoint

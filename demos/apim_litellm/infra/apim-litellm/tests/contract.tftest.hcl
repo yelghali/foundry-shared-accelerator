@@ -89,7 +89,7 @@ run "independent_profile_tls_migration" {
       dedicated-application = "https://app.example.com"
       user-obo              = "https://obo.example.com"
     }
-    user_obo_gateway_audience    = "00000000-0000-0000-0000-000000000005"
+    user_obo_gateway_audience   = "00000000-0000-0000-0000-000000000005"
     development_self_signed_tls = true
     scenario_development_self_signed_tls = {
       dedicated-application = false

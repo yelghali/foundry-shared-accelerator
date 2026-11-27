@@ -15,7 +15,7 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-$arguments = @("-m", "demos.apim_litellm.operator.entra_setup", "consent", "--identity", (Resolve-Path $IdentityFile).Path)
+$arguments = @("-m", "litellm_demo.entra_setup", "consent", "--identity", (Resolve-Path $IdentityFile).Path)
 if ($Output) { $arguments += @("--output", $Output) }
 if ($Apply) { $arguments += "--apply" }
 if ($IncludeAzureCli) { $arguments += "--include-azure-cli" }

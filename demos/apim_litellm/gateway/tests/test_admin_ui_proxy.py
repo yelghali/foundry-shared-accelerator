@@ -6,8 +6,8 @@ from pathlib import Path
 
 import httpx
 
-from demos.apim_litellm.operator.admin_ui_proxy import create_app, legacy_agent_request, ui_agent_response
-from demos.apim_litellm.operator.apim_litellm import create_development_certificate
+from litellm_demo.admin_ui_proxy import create_app, legacy_agent_request, ui_agent_response
+from litellm_demo.apim_litellm import create_development_certificate
 
 
 class AdminUiBridgeTests(unittest.TestCase):

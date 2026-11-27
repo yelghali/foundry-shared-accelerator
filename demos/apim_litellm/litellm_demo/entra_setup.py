@@ -1,6 +1,6 @@
 """Explicit, tenant-scoped Entra provisioning. Planning never authenticates or writes.
 
-Run ``python -m demos.apim_litellm.operator.entra_setup --help``. Admin consent and password
+Run ``python -m litellm_demo.entra_setup --help``. Admin consent and password
 rotation are separate opt-ins. Receipts contain identifiers, never credentials.
 """
 
@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 import requests
 from azure.identity import AzureCliCredential, AzureDeveloperCliCredential
 
-from accelerator.control import save_receipt
+from litellm_demo.control import save_receipt
 
 GRAPH = "https://graph.microsoft.com/v1.0"
 CLI_APP_ID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"

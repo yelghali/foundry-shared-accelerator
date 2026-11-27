@@ -46,6 +46,7 @@ class WorkloadAuth(httpx2.Auth):
 
 
 def install():
+    # Profile C must retain LiteLLM's native delegated MCP OAuth/OBO pipeline.
     if os.environ.get("AUTHENTICATION_SCENARIO") == "user-obo":
         return
     if version("litellm") != "1.110.2":
@@ -66,6 +67,8 @@ def install():
 
     @wraps(original)
     def initialize(self, *args, **kwargs):
+        # Scope auth to this client instance, not a process-wide HTTP transport:
+        # unrelated registry servers must never receive the workload bearer.
         bound = signature.bind(self, *args, **kwargs)
         if bound.arguments.get("server_url") == target:
             bound.arguments["resolved_auth"] = auth

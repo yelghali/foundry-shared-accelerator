@@ -3,7 +3,7 @@
 Loads demo consumer credentials into the current PowerShell process without printing them.
 .DESCRIPTION
 Operator convenience: reads only the application's native virtual key from AKS.
-Scenario C uses the explicitly selected encrypted user cache, never an operator
+Delegated user mode uses the explicitly selected encrypted user cache, never an operator
 identity fallback. Run in your existing terminal, not a separate pwsh -File process.
 #>
 [CmdletBinding()]
@@ -18,9 +18,9 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-$root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+$root = Split-Path -Parent $PSScriptRoot
 if (-not $PythonExecutable) {
-    $localPython = Join-Path $root ".local\scenario-venv\Scripts\python.exe"
+    $localPython = Join-Path $root ".venv\Scripts\python.exe"
     $PythonExecutable = if (Test-Path -LiteralPath $localPython) { $localPython } else { "python" }
 }
 $previousPath = $env:PATH
@@ -34,9 +34,9 @@ $code = @'
 import json,sys
 from pathlib import Path
 from azure.identity import AzureCliCredential,AzureDeveloperCliCredential
-from accelerator.control import load_json
-from demos.apim_litellm.operator.entra_setup import cached_user_token
-from demos.apim_litellm.operator.gateway_keys import read_key
+from litellm_demo.control import load_json
+from litellm_demo.entra_setup import cached_user_token
+from litellm_demo.gateway_keys import read_key
 
 try:
     deployment_path,scenario,identity_path,cache_path,use_azd=sys.argv[1:]
@@ -99,11 +99,11 @@ try {
         Write-Host "Agent downstream model/MCP calls use the hosted runtime identity, not user OBO."
     }
     else {
-        $identityDescription = if ($Scenario -eq "shared-service") { "shared gateway" } else { "dedicated app-alpha gateway" }
+        $identityDescription = if ($Scenario -eq "shared-service") { "shared LiteLLM service" } else { "dedicated LiteLLM service" }
         Write-Host "MCP and agent calls use the $identityDescription workload identity, not user OBO."
     }
-    Write-Host "Release 20261126a: no auth sidecar. A/B MCP auth is custom Python inside LiteLLM; C MCP uses native OBO."
-    Write-Host ('Next (from repository root): & "' + $PythonExecutable + '" -m demos.apim_litellm.samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind hosted-agent --agent-name hosted')
+    Write-Host "No auth sidecars. Service MCP auth is custom Python inside LiteLLM; delegated MCP uses native OBO."
+    Write-Host ('Next (from demo folder): & "' + $PythonExecutable + '" -m samples.consume_gateway --endpoint $env:GATEWAY_ENDPOINT --kind hosted-agent --agent-name hosted')
 }
 finally {
     $raw = $null

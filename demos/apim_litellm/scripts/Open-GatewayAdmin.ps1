@@ -16,7 +16,7 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-$root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+$root = Split-Path -Parent $PSScriptRoot
 $namespace = @{ "shared-service" = "gateway"; "dedicated-application" = "gateway-app-alpha"; "user-obo" = "gateway-user-obo" }[$Scenario]
 $kubeconfig = Join-Path $root ".local\apim-litellm\kubeconfig"
 if (-not (Test-Path $kubeconfig)) { throw "Deploy the gateway workloads first; operator kubeconfig is missing." }
@@ -92,7 +92,7 @@ try {
     Write-Host "Ctrl+C closes access. This panel tests LiteLLM directly, not APIM admission."
     Push-Location $root
     try {
-        & python -m demos.apim_litellm.operator.admin_ui_proxy --port $Port --tunnel-port $TunnelPort --certificate $certificate --public-base $publicBase
+        & python -m litellm_demo.admin_ui_proxy --port $Port --tunnel-port $TunnelPort --certificate $certificate --public-base $publicBase
         if ($LASTEXITCODE -ne 0) { throw "The local UI bridge stopped unexpectedly." }
     }
     finally { Pop-Location }

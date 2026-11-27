@@ -53,7 +53,7 @@ variable "litellm_token_audience" {
   default     = null
 }
 variable "mcp_service_token_audience" {
-  description = "Resource/App ID URI accepted by FastMCP for service-identity calls in A/B."
+  description = "Resource/App ID URI accepted by FastMCP for service-identity calls in shared/dedicated service identities."
   type        = string
   default     = null
   validation {
